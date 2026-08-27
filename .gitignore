@@ -39,3 +39,29 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# data mentah ETL
+/scripts/data/raw/
+/scripts/data/cache/
+*.raw.csv
+*.raw.json
+
+# tile peta
+/public/tiles/*.pmtiles
+
+# python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.ipynb_checkpoints/
+
+# supabase cli
+.branches
+.temp
+**/supabase/.temp
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
