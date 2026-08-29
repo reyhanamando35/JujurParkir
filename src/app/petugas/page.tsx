@@ -41,7 +41,7 @@ export default async function PetugasPage() {
           Masuk sebagai petugas
         </h1>
         <p className="mt-2 max-w-[46ch] text-pretty text-base leading-normal text-ink-muted">
-          Halaman ini untuk Dishub dan Koordinator Wilayah (Katar). Peran
+          Halaman ini untuk Dishub dan Kepala Pelataran (Katar). Peran
           kamu ditentukan otomatis dari akun, jadi tidak perlu dipilih di
           sini.
         </p>

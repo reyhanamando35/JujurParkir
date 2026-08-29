@@ -133,7 +133,7 @@ export default function Home() {
                 Petugas
               </h2>
               <p className="mt-1 text-pretty text-base leading-normal text-ink-muted">
-                Masuk sebagai Dishub atau Koordinator Wilayah (Katar).
+                Masuk sebagai Dishub atau Kepala Pelataran (Katar).
               </p>
             </Link>
           </div>
@@ -141,7 +141,7 @@ export default function Home() {
           {/* 4. Catatan kaki — menjawab keraguan sebelum orang mengetuk */}
           <p className="mt-5 max-w-[46ch] text-pretty text-sm leading-normal text-ink-muted">
             Warga tidak perlu membuat akun. Masuk hanya diperlukan bagi petugas
-            Dishub dan Koordinator Wilayah.
+            Dishub dan Kepala Pelataran.
           </p>
         </div>
       </main>
