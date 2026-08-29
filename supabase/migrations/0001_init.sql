@@ -6,6 +6,10 @@
 
 create extension if not exists postgis;
 
+-- pgcrypto menyediakan crypt() + gen_salt() yang dipakai seeder petugas
+-- di bagian paling bawah untuk membuat hash bcrypt.
+create extension if not exists pgcrypto with schema extensions;
+
 
 -- -------------------------------------------------------------
 -- WILAYAH (kecamatan)
@@ -74,12 +78,29 @@ create table tarif (
 -- -------------------------------------------------------------
 -- PETUGAS
 -- Terhubung ke Supabase Auth. Password ditangani auth.users,
--- tabel ini hanya menyimpan peran dan wilayah.
+-- tabel ini hanya menyimpan identitas dan peran.
+--
+-- TIDAK ADA kolom password di sini. Hash bcrypt-nya tinggal di
+-- auth.users.encrypted_password dan hanya GoTrue yang memverifikasi.
+-- Menyimpan hash kedua di tabel ini berarti dua sumber kebenaran
+-- yang bisa berbeda isi — itu cara membuat lubang, bukan menutupnya.
 -- -------------------------------------------------------------
+
+-- Enum sungguhan, bukan text + check: nilai di luar daftar ditolak di
+-- level tipe, dan tipenya bisa dipakai ulang di fungsi/RPC nanti.
+create type peran_petugas as enum ('dishub', 'katar');
+
 create table petugas (
   id          uuid primary key references auth.users(id) on delete cascade,
+  username    text not null unique,
+
+  -- Disalin dari auth.users karena kunci anon TIDAK boleh membaca skema
+  -- auth. Tanpa salinan ini, dasbor tidak bisa menampilkan identitas
+  -- petugas yang sedang masuk. auth.users tetap sumber kebenaran login.
+  email       text not null unique,
+
   nama        text not null,
-  peran       text not null check (peran in ('dishub', 'katar')),
+  peran       peran_petugas not null,
   wilayah_id  int references wilayah(id),
 
   constraint katar_wajib_punya_wilayah check (
@@ -240,3 +261,85 @@ insert into wilayah (nama) values
   ('Sukolilo'), ('Sukomanunggal'), ('Tambaksari'), ('Tandes'),
   ('Tegalsari'), ('Tenggilis Mejoyo'), ('Wiyung'), ('Wonocolo'),
   ('Wonokromo');
+
+-- =============================================================
+-- SEED — AKUN PETUGAS (HANYA UNTUK PENGEMBANGAN)
+--
+-- PERINGATAN: kata sandi di bawah ini tersimpan di dalam repositori,
+-- jadi ia TIDAK RAHASIA. Jangan pernah menjalankan blok ini pada basis
+-- data produksi. Sebelum rilis: hapus blok ini, atau ganti setiap kata
+-- sandinya lewat Supabase Auth.
+--
+-- Kata sandi TIDAK disimpan sebagai kolom di tabel petugas. Ia masuk ke
+-- auth.users.encrypted_password sebagai hash bcrypt (crypt + gen_salt
+-- 'bf' cost 10) — algoritma yang sama dengan yang dipakai GoTrue, jadi
+-- akun hasil seed ini bisa dipakai login seperti akun biasa.
+--
+--   admin@dishub.com         / Dishub#2026   -> peran dishub
+--   katar.genteng@katar.com  / Katar#2026    -> peran katar (Genteng)
+--
+-- Idempoten: aman dijalankan ulang, tidak akan menggandakan akun.
+-- =============================================================
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at,
+  raw_app_meta_data, raw_user_meta_data,
+  confirmation_token, recovery_token, email_change_token_new, email_change
+)
+values
+  ('00000000-0000-0000-0000-000000000000',
+   '11111111-1111-4111-8111-111111111111',
+   'authenticated', 'authenticated',
+   'admin@dishub.com',
+   extensions.crypt('Dishub#2026', extensions.gen_salt('bf', 10)),
+   now(), now(), now(),
+   '{"provider":"email","providers":["email"]}'::jsonb,
+   '{}'::jsonb,
+   '', '', '', ''),
+
+  ('00000000-0000-0000-0000-000000000000',
+   '22222222-2222-4222-8222-222222222222',
+   'authenticated', 'authenticated',
+   'katar.genteng@katar.com',
+   extensions.crypt('Katar#2026', extensions.gen_salt('bf', 10)),
+   now(), now(), now(),
+   '{"provider":"email","providers":["email"]}'::jsonb,
+   '{}'::jsonb,
+   '', '', '', '')
+on conflict (id) do nothing;
+
+
+-- GoTrue menolak login akun email yang tidak punya baris identitas.
+insert into auth.identities (
+  id, user_id, provider_id, identity_data, provider,
+  last_sign_in_at, created_at, updated_at
+)
+select
+  gen_random_uuid(),
+  u.id,
+  u.id::text,
+  jsonb_build_object(
+    'sub',            u.id::text,
+    'email',          u.email,
+    'email_verified', true,
+    'phone_verified', false
+  ),
+  'email',
+  now(), now(), now()
+from auth.users u
+where u.email in ('admin@dishub.com', 'katar.genteng@katar.com')
+on conflict do nothing;
+
+
+insert into petugas (id, username, email, nama, peran, wilayah_id)
+values
+  ('11111111-1111-4111-8111-111111111111',
+   'admin_dishub', 'admin@dishub.com',
+   'Admin Dishub', 'dishub', null),
+
+  ('22222222-2222-4222-8222-222222222222',
+   'katar_genteng', 'katar.genteng@katar.com',
+   'Koordinator Wilayah Genteng', 'katar',
+   (select id from wilayah where nama = 'Genteng'))
+on conflict (id) do nothing;

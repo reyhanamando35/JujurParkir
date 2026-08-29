@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
+/*
+ * Token desain JujurParkir — tema terang.
+ *
+ * Terang, bukan gelap, karena penggunanya berdiri di pinggir jalan dengan
+ * layar kena matahari: keterbacaan di luar ruangan ditentukan oleh rasio
+ * cahaya yang dipancarkan layar terhadap cahaya sekitar yang dipantulkan,
+ * dan bidang terang memancarkan jauh lebih banyak cahaya total. Sengaja
+ * TIDAK ada peralihan otomatis ke gelap lewat prefers-color-scheme: orang
+ * yang keluar rumah membawa setelan gelap dari dalam ruangan, jadi
+ * peralihan otomatis justru mengembalikan masalah yang mau dihindari.
+ *
+ * Ditulis sebagai variabel mentah di :root supaya bisa dibaca dari JS
+ * (getComputedStyle) oleh komponen canvas, lalu dipetakan ke namespace
+ * --color-* di @theme agar Tailwind membangkitkan utilitasnya sendiri
+ * (bg-surface, text-ink-muted, border-line, ring-accent, ring-offset-bg).
+ * Semua komponen memakai nama token ini, bukan hex.
+ *
+ * Rasio kontras terverifikasi (lihat laporan):
+ *   ink/bg 16.9   ink/surface 18.1   ink-muted/surface 6.9
+ *   accent/surface 5.8   accent-ink/accent 5.8   line/surface 3.3
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* Dipisah jadi komponen RGB supaya lapisan peredam bisa memakai warna
+     yang sama persis dengan latar, hanya beda alfa. */
+  --bg-rgb: 244 247 252;
+
+  --bg: rgb(var(--bg-rgb));
+  --surface: #ffffff;
+  --surface-2: #e9eff9;
+  --line: #7f8fad;
+  --ink: #0d1626;
+  --ink-muted: #4c5b76;
+  /* Amber rambu yang digelapkan sampai layak jadi goresan: ikon, cincin
+     fokus, garis tepi aktif. Kuning cerah di atas putih hanya ~1.8:1. */
+  --accent: #9a5300;
+  --accent-strong: #7a4100;
+  /* Teks di ATAS bidang aksen. Aksennya kini gelap, jadi warnanya terang —
+     kebalikan dari tema gelap, tapi maksudnya sama: jangan pernah teks
+     berkontras rendah di atas bidang aksen. */
+  --accent-ink: #ffffff;
+
+  /* Lapisan peredam di halaman pembuka: gradien radial dari tengah supaya
+     tidak ada teks tipis yang duduk langsung di atas titik yang bergerak. */
+  --damp-inner: rgb(var(--bg-rgb) / 0.35);
+  --damp-outer: rgb(var(--bg-rgb) / 0.92);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  /* Angka tarif nanti sejajar antar baris tanpa perlu diperbaiki lagi. */
+  font-variant-numeric: tabular-nums;
 }
