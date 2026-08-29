@@ -1,0 +1,8 @@
+# Data mentah hasil scraping tidak ikut ke repositori: berkasnya besar, berubah
+# tiap kali ETL dijalankan ulang, dan yang menjadi sumber kebenaran bagi aplikasi
+# adalah keluaran build-titik.mjs, bukan berkas ini.
+#
+# Diletakkan di sini, bukan di .gitignore akar, supaya aturan ini ikut berpindah
+# bersama foldernya dan .gitignore akar tidak perlu disunting.
+*
+!.gitignore
