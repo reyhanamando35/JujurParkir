@@ -46,9 +46,6 @@ next-env.d.ts
 *.raw.csv
 *.raw.json
 
-# tile peta
-/public/tiles/*.pmtiles
-
 # python
 __pycache__/
 *.py[cod]
