@@ -1,10 +1,21 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 
-import { masuk, type StatusMasuk } from "./actions";
+import {
+  kirimTautanAturUlang,
+  masuk,
+  type StatusMasuk,
+} from "./actions";
 
-const statusAwal: StatusMasuk = { pesan: null };
+const statusAwal: StatusMasuk = { pesan: null, gagal: 0 };
+
+/**
+ * Setelah sekian kali kata sandi ditolak, kemungkinan besar orangnya memang
+ * lupa — bukan salah ketik. Di titik itu menawarkan jalan keluar lebih berguna
+ * daripada mengulang pesan galat yang sama.
+ */
+const BATAS_TAWARAN_ATUR_ULANG = 2;
 
 const fieldClassName = [
   "mt-1 block w-full rounded-xl border border-line bg-surface px-3 py-2.5",
@@ -23,6 +34,26 @@ export function FormMasuk() {
   // mengetik ulang email di pinggir jalan dengan satu ibu jari itu mahal.
   // Kata sandi sengaja TIDAK diisi ulang.
   const [email, setEmail] = useState("");
+
+  // Aksi atur ulang dipanggil langsung, bukan lewat action milik <form> ini:
+  // HTML tidak mengizinkan form bersarang, sedangkan tombolnya harus berada
+  // tepat di bawah kolom kata sandi.
+  const [pesanAturUlang, setPesanAturUlang] = useState<string | null>(null);
+  const [mengirimTautan, mulaiKirim] = useTransition();
+
+  const tawarkanAturUlang = status.gagal >= BATAS_TAWARAN_ATUR_ULANG;
+
+  const kirimTautan = () => {
+    mulaiKirim(async () => {
+      const data = new FormData();
+      data.set("email", email);
+      const hasil = await kirimTautanAturUlang(
+        { pesan: null, terkirim: false },
+        data,
+      );
+      setPesanAturUlang(hasil.pesan);
+    });
+  };
 
   return (
     <form action={formAction} className="mt-5 flex flex-col gap-4">
@@ -62,9 +93,37 @@ export function FormMasuk() {
           type="password"
           required
           autoComplete="current-password"
-          aria-describedby={status.pesan ? "galat-masuk" : undefined}
+          aria-describedby={
+            tawarkanAturUlang ? "tawaran-atur-ulang" : status.pesan ? "galat-masuk" : undefined
+          }
           className={fieldClassName}
         />
+
+        {tawarkanAturUlang && (
+          <div
+            id="tawaran-atur-ulang"
+            className="mt-2 rounded-xl border border-line bg-surface-2 p-3"
+          >
+            <p className="text-sm leading-normal text-ink">
+              Kata sandi akun{" "}
+              <span className="font-medium">{email || "ini"}</span> bisa diatur
+              ulang lewat email dinasnya.
+            </p>
+            <button
+              type="button"
+              onClick={kirimTautan}
+              disabled={mengirimTautan || pesanAturUlang !== null}
+              className="mt-2 rounded-lg text-sm font-semibold leading-normal text-accent underline underline-offset-4 transition-colors duration-150 ease-out hover:text-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-2 disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transition-none"
+            >
+              {mengirimTautan
+                ? "Mengirim tautan…"
+                : "Kirim tautan atur ulang kata sandi"}
+            </button>
+            <p aria-live="polite" className="mt-1 text-sm leading-normal text-ink-muted">
+              {pesanAturUlang}
+            </p>
+          </div>
+        )}
       </div>
 
       {/*

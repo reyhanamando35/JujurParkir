@@ -10,9 +10,20 @@ export const metadata: Metadata = {
   title: "Masuk Petugas",
 };
 
-export default async function PetugasPage() {
+const PESAN_ATUR_ULANG: Record<string, string> = {
+  kedaluwarsa:
+    "Tautan atur ulang kata sandinya sudah kedaluwarsa atau sudah dipakai. Coba masuk lagi, lalu minta tautan baru.",
+  tanpa_kode:
+    "Tautan atur ulang kata sandinya tidak lengkap. Buka tautannya langsung dari email, jangan disalin sebagian.",
+};
+
+export default async function PetugasPage({ searchParams }: PageProps<"/petugas">) {
   // Sudah masuk? Tidak perlu melihat form ini lagi.
   if (await getPetugas()) redirect("/petugas/dasbor");
+
+  const { atur_ulang } = await searchParams;
+  const pesanAturUlang =
+    typeof atur_ulang === "string" ? PESAN_ATUR_ULANG[atur_ulang] : undefined;
 
   return (
     <main className="flex flex-1 flex-col justify-center px-5 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-12">
@@ -45,6 +56,15 @@ export default async function PetugasPage() {
           kamu ditentukan otomatis dari akun, jadi tidak perlu dipilih di
           sini.
         </p>
+
+        {pesanAturUlang && (
+          <p
+            role="status"
+            className="mt-5 rounded-xl border border-line bg-surface-2 p-3 text-sm leading-normal text-ink"
+          >
+            {pesanAturUlang}
+          </p>
+        )}
 
         <div className="mt-5 rounded-2xl border border-line bg-surface p-5">
           <FormMasuk />
