@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { kirimLaporan, type StatusLapor } from "@/app/warga/actions";
 
@@ -26,6 +26,15 @@ export type Sasaran =
 
 type Pilihan =
   | { jalur: "terdaftar"; titik: TitikRingkas }
+  | { jalur: "luar_daftar"; lat: number; lng: number };
+
+/**
+ * Apa yang baru saja tersimpan, dikabarkan ke peta supaya angkanya bisa
+ * langsung naik. Sengaja hanya membawa lokasinya — bukan `Pilihan` utuh, dan
+ * tidak pernah isi laporannya.
+ */
+export type Terkirim =
+  | { jalur: "terdaftar"; kode: string }
   | { jalur: "luar_daftar"; lat: number; lng: number };
 
 const awal: StatusLapor = { pesan: null, kode: null };
@@ -125,9 +134,11 @@ function waktuLokalSekarang(): string {
 export function LaporWarga({
   sasaran,
   onTutup,
+  onTerkirim,
 }: {
   sasaran: Sasaran;
   onTutup: () => void;
+  onTerkirim?: (info: Terkirim) => void;
 }) {
   // Diambil sekali dari props. Peta memberi komponen ini `key` yang berubah
   // begitu sasarannya berganti titik, jadi React me-mount ulang dan state awal
@@ -145,16 +156,29 @@ export function LaporWarga({
   const [galatLokal, setGalatLokal] = useState<string | null>(null);
   const [sedangOlahFoto, setSedangOlahFoto] = useState(false);
 
+  // Menahan kabar ke peta supaya terkirim tepat sekali per laporan. Menulis
+  // localStorage dua kali tidak berbahaya, tapi menaikkan angka dua kali iya —
+  // dan StrictMode memang menjalankan efek dua kali di `next dev`.
+  const sudahDikabarkan = useRef(false);
+
   useEffect(() => {
-    if (status.kode) {
-      try {
-        localStorage.setItem(KUNCI_JEDA, String(Date.now()));
-        localStorage.setItem(KUNCI_KODE, status.kode);
-      } catch {
-        // Mode penyamaran memblokir localStorage. Kodenya tetap tampil di layar.
-      }
+    if (!status.kode) return;
+
+    try {
+      localStorage.setItem(KUNCI_JEDA, String(Date.now()));
+      localStorage.setItem(KUNCI_KODE, status.kode);
+    } catch {
+      // Mode penyamaran memblokir localStorage. Kodenya tetap tampil di layar.
     }
-  }, [status.kode]);
+
+    if (sudahDikabarkan.current || !pilihan) return;
+    sudahDikabarkan.current = true;
+    onTerkirim?.(
+      pilihan.jalur === "terdaftar"
+        ? { jalur: "terdaftar", kode: pilihan.titik.kode }
+        : { jalur: "luar_daftar", lat: pilihan.lat, lng: pilihan.lng },
+    );
+  }, [status.kode, pilihan, onTerkirim]);
 
   const aksi = (data: FormData) => {
     setGalatLokal(null);

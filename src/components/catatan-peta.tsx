@@ -89,11 +89,13 @@ export function CatatanPeta() {
       <p className="mt-2 text-pretty text-sm leading-relaxed text-ink-muted">
         Angka pada <span className="text-ink">lingkaran di peta</span> adalah
         jumlah <span className="text-ink">laporan warga</span> di titik parkir
-        area itu, 30 hari terakhir — abu berarti belum ada laporan. Sorot
-        lingkarannya untuk melihat berapa titik parkir yang dirangkumnya.{" "}
+        area itu, 30 hari terakhir — lingkaran abu tanpa angka berarti belum ada
+        laporan. Sorot lingkarannya untuk melihat berapa titik parkir yang
+        dirangkumnya.{" "}
         <span className="text-ink">Pil bertuliskan &ldquo;laporan&rdquo;</span>{" "}
         menghitung laporan di lokasi yang tidak terdaftar, dengan pengelompokan
-        wilayah yang masih perkiraan dari koordinat.
+        wilayah yang masih perkiraan dari koordinat, dan hanya muncul untuk
+        wilayah yang sudah ada laporannya.
       </p>
 
       <button

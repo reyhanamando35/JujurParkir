@@ -14,11 +14,12 @@ import {
   LaporWarga,
   type Sasaran,
   type Terdekat,
+  type Terkirim,
   type TitikRingkas,
 } from "@/components/lapor-warga";
 import { createClient } from "@/lib/supabase/client";
 import { NAMA_KENDARAAN, SUMBER_TARIF, teksRentang } from "@/lib/tarif";
-import { WILAYAH } from "@/lib/wilayah-titik";
+import { turunkanWilayah, WILAYAH } from "@/lib/wilayah-titik";
 
 /**
  * Peta dasar Surabaya dari public/tiles/surabaya.pmtiles, ditumpangi 1.235
@@ -129,16 +130,25 @@ function isiPopup(
   // Kategori tarif tiap titik memang belum diketahui, jadi satu angka tunggal
   // akan terbaca sebagai "tarif resmi di sini" — persis klaim yang tidak bisa
   // kita pertanggungjawabkan.
-  // Angka apa adanya, termasuk 0. Kalimat "belum diverifikasi" wajib ikut:
-  // laporan warga adalah keterangan sepihak, dan angka telanjang di sebelah
-  // sebuah titik akan terbaca sebagai vonis untuk jukir yang menjaganya.
+  // Tiga keadaan yang berbeda, dan ketiganya harus dibedakan:
   //
-  // null berarti angkanya belum termuat (jaringan mati), dan itu TIDAK sama
-  // dengan nol — jadi jangan pernah menampilkannya sebagai nol.
+  //   null — angkanya belum termuat (jaringan lambat/mati). BUKAN nol, jadi
+  //          tidak boleh ditampilkan sebagai nol dan tidak boleh disembunyikan:
+  //          diam berarti "tidak ada laporan", dan itu klaim yang belum tentu
+  //          benar.
+  //   0    — sudah termuat dan memang belum ada laporan. Barisnya dihilangkan
+  //          sama sekali; menulis "0 laporan" di 1.235 titik hanya menenggelamkan
+  //          titik yang benar-benar punya laporan.
+  //   >0   — angkanya disebut, dan kalimat "belum diverifikasi" WAJIB ikut:
+  //          laporan warga adalah keterangan sepihak, dan angka telanjang di
+  //          sebelah sebuah titik akan terbaca sebagai vonis untuk jukir yang
+  //          menjaganya.
   const baris =
     jumlahLaporan === null
       ? `<p class="popup-titik__laporan">Jumlah laporan belum termuat.</p>`
-      : `<p class="popup-titik__laporan"><strong>${jumlahLaporan} laporan warga</strong> dalam 30 hari terakhir, belum diverifikasi petugas.</p>`;
+      : jumlahLaporan === 0
+        ? ""
+        : `<p class="popup-titik__laporan"><strong>${jumlahLaporan} laporan warga</strong> dalam 30 hari terakhir, belum diverifikasi petugas.</p>`;
 
   const sumber = SUMBER_TARIF.resmi
     ? `<p class="popup-titik__sumber">Sumber: ${lolos(SUMBER_TARIF.rujukan)}</p>`
@@ -242,6 +252,14 @@ export function PetaTarif() {
   const gugusRef = useRef<{ refreshClusters: () => void } | null>(null);
   const penandaRef = useRef<Array<{ kode: string; penanda: Marker }>>([]);
   const [agregatVersi, setAgregatVersi] = useState(0);
+  /**
+   * Jumlah yang terakhir benar-benar dipasang ke ikon tiap penanda.
+   *
+   * Dipakai supaya penyegaran hanya menyentuh penanda yang angkanya berubah.
+   * Tanpa ini, tiap pemuatan ulang agregat berarti 1.235 setIcon — dan penanda
+   * yang angkanya turun kembali ke nol tidak akan pernah dikecilkan lagi.
+   */
+  const terpasangRef = useRef<Map<string, number>>(new Map());
   /** Jumlah laporan lokasi tak terdaftar per wilayah, untuk pil di atas peta. */
   const [agregatWilayah, setAgregatWilayah] = useState<Map<
     string,
@@ -261,63 +279,67 @@ export function PetaTarif() {
    * basis data, jadi kunci anon bisa membaca angkanya tanpa pernah bisa
    * membaca satu baris laporan pun.
    */
-  useEffect(() => {
-    let dibatalkan = false;
+  const muatAgregat = useCallback(async () => {
+    await Promise.all([
+      (async () => {
+        const { data, error } = await createClient()
+          .from("laporan_agregat_titik")
+          .select("titik_kode, jumlah");
 
-    void (async () => {
-      const { data, error } = await createClient()
-        .from("laporan_agregat_titik")
-        .select("titik_kode, jumlah");
+        if (error) {
+          console.error("[peta-tarif] gagal memuat jumlah laporan:", error);
+          return;
+        }
 
-      if (dibatalkan) return;
-      if (error) {
-        console.error("[peta-tarif] gagal memuat jumlah laporan:", error);
-        return;
-      }
+        // Satu titik bisa punya beberapa baris (satu per jenis laporan), jadi
+        // dijumlahkan dulu.
+        const total = new Map<string, number>();
+        for (const baris of data ?? []) {
+          const kode = baris.titik_kode as string | null;
+          if (!kode) continue;
+          total.set(kode, (total.get(kode) ?? 0) + Number(baris.jumlah ?? 0));
+        }
+        agregatRef.current = total;
+        setAgregatVersi((v) => v + 1);
+      })(),
 
-      // Satu titik bisa punya beberapa baris (satu per jenis laporan), jadi
-      // dijumlahkan dulu.
-      const total = new Map<string, number>();
-      for (const baris of data ?? []) {
-        const kode = baris.titik_kode as string | null;
-        if (!kode) continue;
-        total.set(kode, (total.get(kode) ?? 0) + Number(baris.jumlah ?? 0));
-      }
-      agregatRef.current = total;
-      setAgregatVersi((v) => v + 1);
-    })();
+      (async () => {
+        const { data, error } = await createClient()
+          .from("laporan_agregat_wilayah")
+          .select("bagian_kota, jumlah");
 
-    void (async () => {
-      const { data, error } = await createClient()
-        .from("laporan_agregat_wilayah")
-        .select("bagian_kota, jumlah");
+        if (error) {
+          console.error("[peta-tarif] gagal memuat agregat wilayah:", error);
+          return;
+        }
 
-      if (dibatalkan) return;
-      if (error) {
-        console.error("[peta-tarif] gagal memuat agregat wilayah:", error);
-        return;
-      }
-
-      const total = new Map<string, number>();
-      for (const baris of data ?? []) {
-        const wilayah = baris.bagian_kota as string | null;
-        if (!wilayah) continue;
-        total.set(wilayah, (total.get(wilayah) ?? 0) + Number(baris.jumlah ?? 0));
-      }
-      setAgregatWilayah(total);
-    })();
-
-    return () => {
-      dibatalkan = true;
-    };
+        const total = new Map<string, number>();
+        for (const baris of data ?? []) {
+          const wilayah = baris.bagian_kota as string | null;
+          if (!wilayah) continue;
+          total.set(
+            wilayah,
+            (total.get(wilayah) ?? 0) + Number(baris.jumlah ?? 0),
+          );
+        }
+        setAgregatWilayah(total);
+      })(),
+    ]);
   }, []);
+
+  useEffect(() => {
+    void muatAgregat();
+  }, [muatAgregat]);
 
   /**
    * Pil jumlah laporan per wilayah, digambar DI ATAS PETA.
    *
-   * Sengaja dibuat sangat berbeda dari lingkaran gugus: lingkaran cokelat
-   * berisi angka menghitung TITIK PARKIR, pil ini menghitung LAPORAN. Dua angka
-   * yang artinya jauh berbeda tidak boleh tampil dengan bentuk yang mirip.
+   * Sengaja dibuat sangat berbeda dari lingkaran gugus. Keduanya menghitung
+   * laporan, tapi laporan yang berbeda: lingkaran gugus menghitung laporan di
+   * TITIK PARKIR RESMI, pil ini menghitung laporan di LOKASI YANG TIDAK
+   * TERDAFTAR. Dua angka yang artinya berbeda tidak boleh tampil dengan bentuk
+   * yang mirip — makanya yang satu lingkaran dan yang satu persegi membulat
+   * yang selalu membawa kata "laporan".
    *
    * interactive: false — pil ini tidak boleh menelan ketukan peta, karena
    * ketukan itulah yang memulai alur pelaporan lokasi tidak terdaftar.
@@ -347,13 +369,17 @@ export function PetaTarif() {
       const titik = rerata.get(wilayah);
       if (!titik || titik.n === 0) continue;
       const jumlah = agregatWilayah.get(wilayah) ?? 0;
+      // Wilayah tanpa laporan tidak diberi pil sama sekali. "Pusat · 0 laporan"
+      // tidak memberi tahu apa pun yang berguna, dan lima pil nol menutupi peta
+      // di zoom yang justru dipakai untuk melihat sebarannya.
+      if (jumlah === 0) continue;
 
       const m = L.marker([titik.lat / titik.n, titik.lng / titik.n], {
         interactive: false,
         keyboard: false,
         icon: L.divIcon({
           className: "",
-          html: `<span class="pil-wilayah${jumlah > 0 ? " pil-wilayah--ada" : ""}">${wilayah} · ${jumlah} laporan</span>`,
+          html: `<span class="pil-wilayah pil-wilayah--ada">${wilayah} · ${jumlah} laporan</span>`,
         }),
       });
       m.addTo(peta);
@@ -380,28 +406,52 @@ export function PetaTarif() {
 
   /**
    * Angka laporan hampir selalu tiba setelah 1.235 penanda selesai dipasang,
-   * jadi ikonnya harus disegarkan sekali — kalau tidak, seluruh peta akan
-   * membeku menampilkan nol padahal datanya sudah ada.
+   * jadi ikonnya harus disegarkan — kalau tidak, seluruh peta akan membeku
+   * menampilkan titik kecil padahal datanya sudah ada.
+   *
+   * Efek ini berjalan lagi tiap agregat dimuat ulang (termasuk setelah warga
+   * mengirim laporan), jadi dua hal penting:
+   *
+   *   - Hanya penanda yang angkanya BERUBAH yang disentuh. Tanpa pembanding,
+   *     tiap penyegaran berarti 1.235 setIcon.
+   *   - Angka bisa TURUN, bukan cuma naik: laporan bisa keluar dari jendela 30
+   *     hari atau ditandai 'ditolak' oleh petugas. Penanda yang kembali nol
+   *     harus dikecilkan lagi, bukan dibiarkan menyandang angka basi.
    */
   useEffect(() => {
     if (agregatVersi === 0 || statusTitik !== "siap") return;
     const L = (window as unknown as { L?: typeof import("leaflet") }).L;
     if (!L) return;
 
+    let adaPerubahan = false;
     for (const { kode, penanda } of penandaRef.current) {
       const jumlah = agregatRef.current?.get(kode) ?? 0;
-      if (jumlah === 0) continue;
+      if (terpasangRef.current.get(kode) === jumlah) continue;
+
       penanda.setIcon(
-        L.divIcon({
-          html: `<span class="pin-parkir pin-parkir--lapor">${jumlah}</span>`,
-          className: "",
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-          popupAnchor: [0, -12],
-        }),
+        jumlah > 0
+          ? L.divIcon({
+              html: `<span class="pin-parkir pin-parkir--lapor">${jumlah}</span>`,
+              className: "",
+              iconSize: [24, 24],
+              iconAnchor: [12, 12],
+              popupAnchor: [0, -12],
+            })
+          : L.divIcon({
+              html: '<span class="pin-parkir"></span>',
+              className: "",
+              iconSize: [16, 16],
+              iconAnchor: [8, 8],
+              popupAnchor: [0, -8],
+            }),
       );
+      terpasangRef.current.set(kode, jumlah);
+      adaPerubahan = true;
     }
-    gugusRef.current?.refreshClusters();
+
+    // refreshClusters menggambar ulang seluruh lingkaran gugus; tidak perlu
+    // dijalankan kalau tidak ada satu pun angka yang berubah.
+    if (adaPerubahan) gugusRef.current?.refreshClusters();
   }, [agregatVersi, statusTitik]);
 
   const tutupLapor = useCallback(() => {
@@ -409,6 +459,41 @@ export function PetaTarif() {
     pinRef.current = null;
     setSasaran(null);
   }, []);
+
+  /**
+   * Dipanggil begitu sebuah laporan benar-benar tersimpan.
+   *
+   * Angkanya dinaikkan lebih dulu di sini, baru agregatnya dimuat ulang dari
+   * basis data. Urutan itu disengaja: warga melihat angkanya bergerak pada
+   * detik yang sama ia menekan kirim, bukan setelah satu putaran jaringan lagi
+   * — dan orang yang baru saja melapor di pinggir jalan memang butuh bukti
+   * bahwa laporannya masuk hitungan.
+   *
+   * Kalau pemuatan ulangnya gagal, kenaikan tadi tetap bertahan. Itu perilaku
+   * yang benar: laporannya memang sudah tersimpan.
+   */
+  const catatLaporanBaru = useCallback(
+    (info: Terkirim) => {
+      if (info.jalur === "terdaftar") {
+        const peta = agregatRef.current ?? new Map<string, number>();
+        peta.set(info.kode, (peta.get(info.kode) ?? 0) + 1);
+        agregatRef.current = peta;
+        setAgregatVersi((v) => v + 1);
+      } else {
+        // Fungsi yang sama persis dengan yang dipakai Server Action, jadi
+        // wilayah tebakan di sini tidak akan meleset dari yang dihitung server.
+        const wilayah = turunkanWilayah(info.lat, info.lng);
+        setAgregatWilayah((sebelumnya) => {
+          const peta = new Map(sebelumnya ?? []);
+          peta.set(wilayah, (peta.get(wilayah) ?? 0) + 1);
+          return peta;
+        });
+      }
+
+      void muatAgregat();
+    },
+    [muatAgregat],
+  );
 
   useEffect(() => {
     const wadah = wadahRef.current;
@@ -599,11 +684,26 @@ export function PetaTarif() {
               ) ?? 0),
             0,
           );
-          return L.divIcon({
-            html: `<span class="gugus-parkir${total > 0 ? " gugus-parkir--lapor" : ""}" title="${total} laporan warga dari ${anak.length} titik parkir di area ini">${total}</span>`,
-            className: "",
-            iconSize: [38, 38],
-          });
+          // Gugus tanpa laporan tidak menampilkan angka apa pun dan dibuat
+          // lebih kecil. Sebelumnya hampir seluruh peta berisi lingkaran "0",
+          // dan lautan nol itu justru menyembunyikan segelintir titik yang
+          // benar-benar punya laporan — kebalikan dari guna peta ini.
+          //
+          // Jumlah titiknya sengaja TIDAK dipakai sebagai angka pengganti:
+          // satu bentuk lingkaran yang angkanya berarti "laporan" saat beraksen
+          // tapi "titik parkir" saat abu adalah persis dua angka berbeda arti
+          // dengan bentuk mirip. Itu tetap tersedia lewat title saat disorot.
+          return total > 0
+            ? L.divIcon({
+                html: `<span class="gugus-parkir gugus-parkir--lapor" title="${total} laporan warga dari ${anak.length} titik parkir di area ini">${total}</span>`,
+                className: "",
+                iconSize: [38, 38],
+              })
+            : L.divIcon({
+                html: `<span class="gugus-parkir gugus-parkir--kosong" title="${anak.length} titik parkir di area ini, belum ada laporan"></span>`,
+                className: "",
+                iconSize: [28, 28],
+              });
         },
       });
 
@@ -633,10 +733,15 @@ export function PetaTarif() {
             });
 
       const daftarPenanda: Array<{ kode: string; penanda: Marker }> = [];
+      // Dicatat sejak ikon pertama dipasang, supaya penyegaran berikutnya tahu
+      // penanda mana yang sudah benar dan tidak perlu disentuh lagi.
+      terpasangRef.current = new Map();
       for (const fitur of data.features) {
         const [lng, lat] = fitur.geometry.coordinates;
+        const jumlahAwal = agregatRef.current?.get(fitur.id) ?? 0;
+        terpasangRef.current.set(fitur.id, jumlahAwal);
         const penanda = L.marker([lat, lng], {
-          icon: buatIkonTitik(agregatRef.current?.get(fitur.id) ?? 0),
+          icon: buatIkonTitik(jumlahAwal),
           keyboard: false,
           alt: `Titik parkir ${fitur.properties.alamat}`,
         });
@@ -886,6 +991,7 @@ export function PetaTarif() {
           key={sasaran.mode === "titik" ? `titik-${sasaran.titik.kode}` : "pilih"}
           sasaran={sasaran}
           onTutup={tutupLapor}
+          onTerkirim={catatLaporanBaru}
         />
       )}
 

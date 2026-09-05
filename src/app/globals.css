@@ -154,6 +154,14 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Gugus tanpa laporan: lebih kecil dan tanpa angka. Sengaja tetap terlihat
+   supaya sebaran titik parkir tetap terbaca, tapi cukup tenang untuk tidak
+   bersaing dengan gugus yang benar-benar punya laporan. */
+.gugus-parkir--kosong {
+  width: 28px;
+  height: 28px;
+}
+
 .gugus-parkir--lapor {
   background: var(--accent);
   border-color: var(--surface);
