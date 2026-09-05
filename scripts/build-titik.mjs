@@ -28,6 +28,36 @@ const BERKAS_SQL = join(AKAR, "supabase", "migrations", "0002_seed_titik.sql");
 /** Kotak Kota Surabaya. Apa pun di luar ini adalah kesalahan geocoding. */
 const BATAS = { latMin: -7.4, latMaks: -7.15, lngMin: 112.55, lngMaks: 112.88 };
 
+/**
+ * Lima wilayah administratif Kota Surabaya.
+ *
+ * PERKIRAAN, BUKAN BATAS RESMI. Kita belum punya poligon kecamatan, jadi
+ * wilayah diturunkan dari koordinat dengan ambang kasar. Setiap tempat nilai
+ * ini ditampilkan di UI wajib menyebutkan bahwa ia perkiraan — titik di dekat
+ * garis batas hampir pasti salah masuk.
+ */
+const PUSAT_KOTA = { lat: -7.2756, lng: 112.7378 };
+
+function turunkanWilayah(lat, lng) {
+  // Kotak inti kota. Diperiksa lebih dulu supaya titik di sekitar Genteng,
+  // Bubutan, dan Tegalsari tidak terlempar ke salah satu penjuru hanya karena
+  // simpangannya beberapa ratus meter.
+  if (lat >= -7.27 && lat <= -7.25 && lng >= 112.73 && lng <= 112.75) {
+    return "Pusat";
+  }
+
+  const dLat = lat - PUSAT_KOTA.lat;
+  const dLng = lng - PUSAT_KOTA.lng;
+
+  // Rentang lintang kota jauh lebih pendek daripada bujurnya, jadi keduanya
+  // dinormalisasi dulu; tanpa itu hampir semua titik akan jatuh ke Timur/Barat.
+  const bobotLat = Math.abs(dLat) / 0.12;
+  const bobotLng = Math.abs(dLng) / 0.14;
+
+  if (bobotLat >= bobotLng) return dLat > 0 ? "Utara" : "Selatan";
+  return dLng > 0 ? "Timur" : "Barat";
+}
+
 // ---------------------------------------------------------------------------
 // Pembacaan CSV
 // ---------------------------------------------------------------------------
@@ -266,6 +296,7 @@ function utama() {
   }
   for (const t of titik) {
     t.presisi = jumlahPerKoordinat.get(t.koordinat) > 1 ? "jalan" : "perkiraan";
+    t.wilayah = turunkanWilayah(t.lat, t.lng);
   }
 
   tulisGeojson(titik);
@@ -287,6 +318,7 @@ function tulisGeojson(titik) {
       jam_selesai: t.jamSelesai,
       jam_teks: t.jamTeks,
       presisi: t.presisi,
+      wilayah: t.wilayah,
       // kategori_tarif dan tarif sengaja TIDAK ada di sini. Perda tidak
       // memetakan alamat ke kategori tarif, jadi kolom kosong pun akan
       // terbaca sebagai "sudah dicek, hasilnya nihil" — padahal belum dicek.
@@ -314,6 +346,7 @@ function tulisSql(titik) {
           t.jamMulai === null ? "null" : kutipSql(t.jamMulai),
           t.jamSelesai === null ? "null" : kutipSql(t.jamSelesai),
           kutipSql(t.presisi),
+          kutipSql(t.wilayah),
           `st_setsrid(st_makepoint(${t.lng}, ${t.lat}), 4326)::geography`,
         ].join(", "),
         ")",
@@ -340,9 +373,12 @@ alter table titik_parkir add column if not exists kode_titik  text;
 alter table titik_parkir add column if not exists presisi     text;
 alter table titik_parkir add column if not exists jam_mulai   time;
 alter table titik_parkir add column if not exists jam_selesai time;
+alter table titik_parkir add column if not exists wilayah     text;
 
 comment on column titik_parkir.kode_titik is
   'Id stabil: 8 heksadesimal pertama sha256(alamat|lokasi) yang dinormalisasi. Sengaja bukan nomor urut scraping, supaya laporan tidak salah sasaran ketika sumbernya di-scrape ulang.';
+comment on column titik_parkir.wilayah is
+  'PERKIRAAN wilayah Surabaya (Pusat/Utara/Timur/Selatan/Barat) yang diturunkan dari koordinat dengan ambang kasar, BUKAN batas administratif resmi. Titik di dekat garis batas bisa salah masuk. Setiap tampilan yang memakai kolom ini wajib menyebutkan sifat perkiraannya.';
 comment on column titik_parkir.presisi is
   'jalan = koordinat dipakai lebih dari satu alamat, jadi pin mewakili ruas jalan. perkiraan = koordinat hanya dipakai alamat ini. Nilai "exact" tidak pernah dipakai: tidak ada buktinya.';
 
@@ -350,6 +386,16 @@ do $$
 begin
   alter table titik_parkir
     add constraint titik_parkir_presisi_check check (presisi in ('jalan', 'perkiraan'));
+exception
+  when duplicate_object then null;
+end
+$$;
+
+do $$
+begin
+  alter table titik_parkir
+    add constraint titik_parkir_wilayah_check
+    check (wilayah in ('Pusat', 'Utara', 'Timur', 'Selatan', 'Barat'));
 exception
   when duplicate_object then null;
 end
@@ -365,7 +411,7 @@ create unique index if not exists titik_parkir_kode_titik_idx
 -- tarif, jadi kita memang BELUM tahu tarif titik-titik ini. Mengisi nilai
 -- bawaan berarti menerbitkan angka yang tidak bisa ditelusuri.
 insert into titik_parkir
-  (kode_titik, alamat, landmark, jam_jaga, jam_mulai, jam_selesai, presisi, geom)
+  (kode_titik, alamat, landmark, jam_jaga, jam_mulai, jam_selesai, presisi, wilayah, geom)
 values
 ${nilai}
 on conflict (kode_titik) do update set
@@ -375,6 +421,7 @@ on conflict (kode_titik) do update set
   jam_mulai   = excluded.jam_mulai,
   jam_selesai = excluded.jam_selesai,
   presisi     = excluded.presisi,
+  wilayah     = excluded.wilayah,
   geom        = excluded.geom;
 
 commit;
@@ -412,6 +459,14 @@ function cetakRingkasan(titik, jumlahPerKoordinat, daftarKembar) {
       const n = jamGagal.filter((t) => t.jamTeks === v).length;
       console.log(`  ${String(n).padStart(3)}x  "${v}"`);
     }
+  }
+
+  const perWilayah = new Map();
+  for (const t of titik) perWilayah.set(t.wilayah, (perWilayah.get(t.wilayah) ?? 0) + 1);
+  console.log();
+  console.log("Sebaran wilayah (PERKIRAAN dari koordinat, bukan batas resmi):");
+  for (const nama of ["Pusat", "Utara", "Timur", "Selatan", "Barat"]) {
+    console.log(`  ${nama.padEnd(8)} ${String(perWilayah.get(nama) ?? 0).padStart(5)}`);
   }
 
   const terpadat = [...jumlahPerKoordinat.entries()].sort((a, b) => b[1] - a[1])[0];

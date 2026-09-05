@@ -16,7 +16,8 @@
     "next": "16.3.3",
     "protomaps-leaflet": "^5.1.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
