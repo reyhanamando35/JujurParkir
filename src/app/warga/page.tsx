@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CatatanPeta } from "@/components/catatan-peta";
 import { PetaTarif } from "@/components/peta-tarif";
 
 export const metadata: Metadata = {
@@ -65,14 +66,7 @@ export default function WargaPage() {
         id="keterangan-peta"
         className="shrink-0 border-t border-line bg-surface px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3.5 sm:px-6"
       >
-        <p className="mx-auto max-w-3xl text-pretty text-sm leading-relaxed text-ink-muted">
-          <span className="text-ink">1.235 titik parkir resmi</span> tepi jalan
-          umum, dari data Dishub Kota Surabaya. Ketuk pin untuk melihat alamat
-          dan jam jaganya.{" "}
-          <span className="text-ink">Tarifnya belum diverifikasi</span> dan
-          sengaja tidak ditampilkan — posisi pin pun sebagian masih perkiraan
-          tengah ruas jalan.
-        </p>
+        <CatatanPeta />
       </footer>
     </main>
   );
