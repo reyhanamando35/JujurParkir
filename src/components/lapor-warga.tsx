@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import { kirimLaporan, type StatusLapor } from "@/app/warga/actions";
+import { simpanKode } from "@/lib/riwayat-kode";
 
 export type TitikRingkas = {
   kode: string;
@@ -41,7 +42,6 @@ const awal: StatusLapor = { pesan: null, kode: null };
 
 const JEDA_MS = 30_000;
 const KUNCI_JEDA = "jujurparkir:lapor-terakhir";
-const KUNCI_KODE = "jujurparkir:kode-laporan";
 const BATAS_FOTO_BYTE = 10 * 1024 * 1024;
 
 /**
@@ -166,10 +166,12 @@ export function LaporWarga({
 
     try {
       localStorage.setItem(KUNCI_JEDA, String(Date.now()));
-      localStorage.setItem(KUNCI_KODE, status.kode);
     } catch {
       // Mode penyamaran memblokir localStorage. Kodenya tetap tampil di layar.
     }
+    // Disimpan sebagai daftar, bukan satu nilai: orang yang melapor dua kali
+    // dulu kehilangan kode pertamanya tanpa pernah diberi tahu.
+    simpanKode(status.kode);
 
     if (sudahDikabarkan.current || !pilihan) return;
     sudahDikabarkan.current = true;
@@ -239,15 +241,26 @@ export function LaporWarga({
           </p>
         </div>
         <p className="mt-3 text-pretty text-sm leading-normal text-ink-muted">
-          Simpan kode ini kalau sewaktu-waktu perlu menyebutkannya. Kode ini
-          tidak terhubung ke nama, nomor, atau akun siapa pun.
+          Catat kode ini. Karena laporanmu anonim, tidak ada email atau nomor
+          untuk mengirimkannya ulang —{" "}
+          <span className="font-medium text-ink">
+            kalau kodenya hilang, laporannya tidak bisa dicari lagi
+          </span>
+          . Kode ini tidak terhubung ke nama, nomor, atau akun siapa pun.
         </p>
+
+        <a
+          href={`/warga/cek/${status.kode}`}
+          className="mt-4 block w-full rounded-xl bg-accent px-4 py-2.5 text-center text-base font-semibold text-accent-ink hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+        >
+          Lihat status laporan
+        </a>
         <button
           type="button"
           onClick={onTutup}
-          className="mt-4 w-full rounded-xl bg-accent px-4 py-2.5 text-base font-semibold text-accent-ink"
+          className="mt-2 w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-base font-semibold text-ink hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
-          Selesai
+          Kembali ke peta
         </button>
       </Panel>
     );

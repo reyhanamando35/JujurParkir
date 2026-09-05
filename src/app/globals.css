@@ -183,6 +183,55 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Penanda laporan di peta verifikasi petugas.
+ *
+ * Status dibedakan lewat BENTUK sekaligus warna — isi penuh, cincin, dan garis
+ * putus-putus — supaya masih terbaca oleh orang yang tidak membedakan warna.
+ * Statusnya juga selalu tertulis sebagai teks di daftar dan panel, jadi peta
+ * ini tidak pernah jadi satu-satunya cara mengetahuinya.
+ */
+.pin-laporan {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgb(13 22 38 / 0.35);
+  cursor: pointer;
+}
+
+/* Belum disentuh siapa pun: paling menonjol, karena ini yang perlu dikerjakan. */
+.pin-laporan--baru {
+  background: var(--accent);
+  border: 2px solid var(--surface);
+}
+
+/* Sedang dikerjakan: cincin aksen berongga. */
+.pin-laporan--proses {
+  background: var(--surface);
+  border: 3px solid var(--accent);
+}
+
+/* Sudah ditangani: tenang, tidak lagi menarik perhatian. */
+.pin-laporan--selesai {
+  background: var(--line);
+  border: 2px solid var(--surface);
+}
+
+/* Sudah diperiksa dan tidak terbukti: garis putus-putus, jelas beda bentuk. */
+.pin-laporan--ditolak {
+  background: var(--surface);
+  border: 2px dashed var(--ink-muted);
+  box-shadow: none;
+}
+
+/* Yang sedang dibuka panelnya. Cincin luar, bukan perubahan warna isi, supaya
+   statusnya tetap terbaca sambil disorot. */
+.pin-laporan--terpilih {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
 /* Popup titik parkir. */
 .leaflet-popup-content-wrapper {
   border-radius: 12px;

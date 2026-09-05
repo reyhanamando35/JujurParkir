@@ -2,9 +2,16 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getPetugas } from "@/lib/auth";
+import {
+  LABEL_STATUS,
+  labelJalur,
+  labelJenis,
+  type StatusLaporan,
+} from "@/lib/laporan";
 import { createClient } from "@/lib/supabase/server";
 
 import { keluar } from "../actions";
@@ -226,14 +233,22 @@ export default async function DasborPage() {
             </div>
           </div>
 
-          <form action={keluar}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/petugas/laporan"
+              className="rounded-xl bg-accent px-3 py-2 text-sm font-semibold leading-normal text-accent-ink transition-colors duration-150 ease-out hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+            >
+              Verifikasi laporan
+            </Link>
+            <form action={keluar}>
             <button
               type="submit"
               className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg active:scale-[0.99] motion-reduce:transition-none"
             >
               Keluar
             </button>
-          </form>
+            </form>
+          </div>
         </div>
 
         {/* ---------- BAGIAN 1 ---------- */}
@@ -361,9 +376,15 @@ export default async function DasborPage() {
                       <td className="whitespace-nowrap px-4 py-2 tabular-nums text-ink">
                         {new Date(l.dibuat_pada).toLocaleDateString("id-ID")}
                       </td>
-                      <td className="px-4 py-2 text-ink">{l.jenis}</td>
-                      <td className="px-4 py-2 text-ink-muted">{l.jalur}</td>
-                      <td className="px-4 py-2 text-ink">{l.status}</td>
+                      <td className="px-4 py-2 text-ink">
+                        {labelJenis(l.jenis)}
+                      </td>
+                      <td className="px-4 py-2 text-ink-muted">
+                        {labelJalur(l.jalur)}
+                      </td>
+                      <td className="px-4 py-2 text-ink">
+                        {LABEL_STATUS[l.status as StatusLaporan] ?? l.status}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

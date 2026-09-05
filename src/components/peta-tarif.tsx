@@ -17,6 +17,7 @@ import {
   type Terkirim,
   type TitikRingkas,
 } from "@/components/lapor-warga";
+import { pasangPetaDasar, SUMBER_TITIK } from "@/lib/peta-dasar";
 import { createClient } from "@/lib/supabase/client";
 import { NAMA_KENDARAAN, SUMBER_TARIF, teksRentang } from "@/lib/tarif";
 import { turunkanWilayah, WILAYAH } from "@/lib/wilayah-titik";
@@ -35,27 +36,8 @@ import { turunkanWilayah, WILAYAH } from "@/lib/wilayah-titik";
  * ter-cache peramban dan tetap tampil saat jaringan mati.
  */
 
-/** Tampilan awal dan kurungan geografis. Data kita hanya ada di Surabaya. */
-const PUSAT_AWAL = [-7.2756, 112.7378] as const;
-const ZOOM_AWAL = 12;
-const ZOOM_MIN = 11;
-const ZOOM_MAKS = 18;
-const BATAS_SURABAYA = [
-  [-7.4, 112.55],
-  [-7.15, 112.88],
-] as const;
-
-/**
- * Di atas z15 tidak ada data di berkas tile. Tanpa maxDataZoom, Leaflet meminta
- * z16+ yang tidak ada dan peta berubah kosong tepat saat pengguna memperbesar
- * untuk membaca nama jalan — persis saat peta paling dibutuhkan.
- */
-const ZOOM_DATA_MAKS = 15;
-
-/** Sama alasannya dengan latar partikel: DPR 3 membakar fill rate tanpa hasil. */
-const DPR_MAKS = 2;
-
-const SUMBER_TITIK = "/data/titik-parkir.geojson";
+// Tampilan awal, kurungan geografis, dan pemasangan peta dasar dipakai bersama
+// dengan peta verifikasi petugas — lihat src/lib/peta-dasar.ts.
 
 type Presisi = "jalan" | "perkiraan";
 
@@ -501,7 +483,7 @@ export function PetaTarif() {
 
     let peta: LeafletMap | null = null;
     let penandaLokasi: CircleMarker | null = null;
-    let pengamatUkuran: ResizeObserver | null = null;
+    let lepasPengamat: (() => void) | null = null;
     // Impor modulnya asinkron, jadi efek ini bisa dibersihkan sebelum petanya
     // sempat dibuat. Tanpa penjaga ini, StrictMode di `next dev` meninggalkan
     // satu peta yatim yang tidak pernah di-remove.
@@ -509,118 +491,22 @@ export function PetaTarif() {
     const pembatal = new AbortController();
 
     const pasang = async () => {
-      // Leaflet menyentuh `window` saat modul dievaluasi, jadi ia hanya boleh
-      // dimuat di sini — bukan lewat impor statis yang ikut dievaluasi SSR.
-      // Urutannya penting: dua modul berikutnya bergantung pada `L` global yang
-      // dipasang Leaflet sendiri saat diimpor.
-      await import("leaflet");
-      const { leafletLayer } = await import("protomaps-leaflet");
-      await import("leaflet.markercluster");
-      if (dibatalkan || !wadahRef.current) return;
-
-      /**
-       * Sengaja mengambil `window.L`, bukan hasil `await import("leaflet")`.
-       *
-       * Plugin Leaflet gaya lama menempelkan dirinya ke objek global —
-       * markercluster menambahkan L.markerClusterGroup ke sana. Di bawah
-       * bundler, namespace modul hasil import adalah objek yang BERBEDA dari
-       * window.L, dan namespace itu tidak ikut kebagian tambahan si plugin:
-       * memanggilnya lewat namespace melempar "L.markerClusterGroup is not a
-       * function" padahal plugin-nya jelas sudah termuat. Memakai satu objek
-       * yang sama untuk inti dan plugin menutup seluruh kelas bug ini.
-       */
-      const L = (window as unknown as { L: typeof import("leaflet") }).L;
-
-      const hematGerak = window.matchMedia(
-        "(prefers-reduced-motion: reduce)",
-      ).matches;
-
-      peta = L.map(wadahRef.current, {
-        // Penanda titik parkir berjumlah ribuan. Canvas menggambarnya sebagai
-        // piksel, bukan ribuan elemen DOM yang harus di-layout.
-        preferCanvas: true,
-        // Kontrol bawaan diganti tombol sendiri supaya ukuran sentuhnya 44px
-        // dan posisinya terjangkau ibu jari.
-        zoomControl: false,
-        center: [PUSAT_AWAL[0], PUSAT_AWAL[1]],
-        zoom: ZOOM_AWAL,
-        minZoom: ZOOM_MIN,
-        maxZoom: ZOOM_MAKS,
-        maxBounds: [
-          [BATAS_SURABAYA[0][0], BATAS_SURABAYA[0][1]],
-          [BATAS_SURABAYA[1][0], BATAS_SURABAYA[1][1]],
-        ],
-        // Geseran keluar kota ditarik balik penuh: di luar bounds tidak ada
-        // titik parkir sama sekali, dan layar kosong terbaca sebagai aplikasi
-        // rusak.
-        maxBoundsViscosity: 1,
-        // Tanpa ini, cubitan dua jari memantul melewati batas zoom dan sekejap
-        // memperlihatkan daerah tanpa tile di tepi.
-        bounceAtZoomLimits: false,
-        zoomAnimation: !hematGerak,
-        fadeAnimation: !hematGerak,
-        markerZoomAnimation: !hematGerak,
+      // Seluruh pemasangan peta dasar — impor Leaflet, lapisan PMTiles, batas
+      // zoom, ResizeObserver — ada di src/lib/peta-dasar.ts karena peta
+      // verifikasi petugas memakai yang persis sama.
+      const dasar = await pasangPetaDasar(wadah, {
+        onTileError: () => {
+          if (!dibatalkan) setStatus("gagal");
+        },
+        batal: () => dibatalkan || !wadahRef.current,
       });
+      // null berarti komponennya sudah dilepas selama impor berlangsung, dan
+      // tidak ada peta yang dibuat sama sekali.
+      if (!dasar) return;
 
-      const lapisan = leafletLayer({
-        url: "/tiles/surabaya.pmtiles",
-        // Tema terang, sejalan dengan keputusan di globals.css: penggunanya
-        // membaca layar di bawah matahari.
-        flavor: "light",
-        maxDataZoom: ZOOM_DATA_MAKS,
-        devicePixelRatio: Math.min(window.devicePixelRatio || 1, DPR_MAKS),
-      });
-
-      lapisan.on("tileerror", () => {
-        if (!dibatalkan) setStatus("gagal");
-      });
-
-      lapisan.addTo(peta);
-
-      /**
-       * Penjaga tepi kosong.
-       *
-       * ZOOM_MIN dan ZOOM_AWAL di atas pas untuk layar ponsel — di 375px,
-       * z12 memang membuat kotak Surabaya mengisi layar penuh. Tapi di jendela
-       * desktop yang lebar, zoom yang sama membuat viewport lebih luas daripada
-       * kotaknya, dan tepi layar terisi daerah putih di luar cakupan berkas
-       * tile. getBoundsZoom(batas, true) menjawab "zoom terkecil yang masih
-       * membuat layar seluruhnya berada DI DALAM kotak", jadi angka di atas
-       * tetap dipakai apa adanya kecuali ketika ia akan memunculkan tepi
-       * kosong.
-       */
-      const kotakTampilan = L.latLngBounds(
-        [BATAS_SURABAYA[0][0], BATAS_SURABAYA[0][1]],
-        [BATAS_SURABAYA[1][0], BATAS_SURABAYA[1][1]],
-      );
-      const setelBatasZoomKeluar = () => {
-        if (!peta) return;
-        peta.setMinZoom(Math.max(ZOOM_MIN, peta.getBoundsZoom(kotakTampilan, true)));
-      };
-      /**
-       * ResizeObserver, bukan event 'resize' milik Leaflet.
-       *
-       * Saat efek ini berjalan, kontainer peta kadang belum punya ukuran sama
-       * sekali (0x0) karena layout browser belum sempat jalan. Menghitung batas
-       * zoom pada saat itu menghasilkan angka yang salah, dan Leaflet juga
-       * meminta tile untuk kotak yang salah sehingga peta sempat tergambar
-       * hanya di sekolom sempit. ResizeObserver menyala tepat ketika ukuran
-       * sesungguhnya sudah ada — dan sekaligus menangani rotasi layar, bilah
-       * alamat ponsel yang menyusut, dan jendela desktop yang diseret.
-       */
-      pengamatUkuran = new ResizeObserver(() => {
-        if (!peta) return;
-        peta.invalidateSize();
-        setelBatasZoomKeluar();
-        if (peta.getZoom() < peta.getMinZoom()) {
-          peta.setZoom(peta.getMinZoom(), { animate: false });
-        }
-      });
-      pengamatUkuran.observe(wadahRef.current);
-
-      // Atribusi OSM wajib tampil (lisensi ODbL), tapi tempat bawaannya
-      // kanan-bawah — tepat di bawah tombol zoom. Dipindah, bukan disembunyikan.
-      peta.attributionControl.setPosition("bottomleft");
+      const L = dasar.L;
+      peta = dasar.peta;
+      lepasPengamat = dasar.bersihkan;
 
       peta.on("locationfound", (event) => {
         if (!peta) return;
@@ -848,8 +734,8 @@ export function PetaTarif() {
     return () => {
       dibatalkan = true;
       pembatal.abort();
-      pengamatUkuran?.disconnect();
-      pengamatUkuran = null;
+      lepasPengamat?.();
+      lepasPengamat = null;
       penandaLokasi?.remove();
       penandaLokasi = null;
       pinRef.current?.remove();
