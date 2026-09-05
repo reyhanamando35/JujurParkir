@@ -8,7 +8,17 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CircleMarker, Map as LeafletMap } from "leaflet";
+import type { CircleMarker, Map as LeafletMap, Marker } from "leaflet";
+
+import {
+  LaporWarga,
+  type Sasaran,
+  type Terdekat,
+  type TitikRingkas,
+} from "@/components/lapor-warga";
+import { createClient } from "@/lib/supabase/client";
+import { NAMA_KENDARAAN, SUMBER_TARIF, teksRentang } from "@/lib/tarif";
+import { WILAYAH } from "@/lib/wilayah-titik";
 
 /**
  * Peta dasar Surabaya dari public/tiles/surabaya.pmtiles, ditumpangi 1.235
@@ -55,6 +65,7 @@ type SifatTitik = {
   jam_selesai: string | null;
   jam_teks: string;
   presisi: Presisi;
+  wilayah: string;
 };
 
 type FiturTitik = {
@@ -99,7 +110,11 @@ function tulisJam(sifat: SifatTitik): string {
   return "Tidak tercatat";
 }
 
-function isiPopup(sifat: SifatTitik): string {
+function isiPopup(
+  sifat: SifatTitik,
+  kode: string,
+  jumlahLaporan: number | null,
+): string {
   const catatanPresisi =
     sifat.presisi === "jalan"
       ? `<p class="popup-titik__catatan">Posisi pin adalah perkiraan tengah ruas jalan, bukan titik persis.</p>`
@@ -110,9 +125,25 @@ function isiPopup(sifat: SifatTitik): string {
       ? `<p class="popup-titik__lokasi">${lolos(sifat.lokasi)}</p>`
       : "";
 
-  // Tarif TIDAK pernah diisi angka. Perda tidak memetakan alamat ke kategori
-  // tarif, jadi angka apa pun di sini adalah karangan — dan justru angka itulah
-  // yang akan dipakai warga untuk berdebat dengan jukir.
+  // RENTANG lintas seluruh kategori, tidak pernah satu angka untuk titik ini.
+  // Kategori tarif tiap titik memang belum diketahui, jadi satu angka tunggal
+  // akan terbaca sebagai "tarif resmi di sini" — persis klaim yang tidak bisa
+  // kita pertanggungjawabkan.
+  // Angka apa adanya, termasuk 0. Kalimat "belum diverifikasi" wajib ikut:
+  // laporan warga adalah keterangan sepihak, dan angka telanjang di sebelah
+  // sebuah titik akan terbaca sebagai vonis untuk jukir yang menjaganya.
+  //
+  // null berarti angkanya belum termuat (jaringan mati), dan itu TIDAK sama
+  // dengan nol — jadi jangan pernah menampilkannya sebagai nol.
+  const baris =
+    jumlahLaporan === null
+      ? `<p class="popup-titik__laporan">Jumlah laporan belum termuat.</p>`
+      : `<p class="popup-titik__laporan"><strong>${jumlahLaporan} laporan warga</strong> dalam 30 hari terakhir, belum diverifikasi petugas.</p>`;
+
+  const sumber = SUMBER_TARIF.resmi
+    ? `<p class="popup-titik__sumber">Sumber: ${lolos(SUMBER_TARIF.rujukan)}</p>`
+    : `<p class="popup-titik__contoh">Angka contoh, belum diisi dari Perda 7/2023 — jangan dipakai sebagai rujukan resmi.</p>`;
+
   return `
     <div class="popup-titik">
       <h2 class="popup-titik__alamat">${lolos(sifat.alamat)}</h2>
@@ -120,12 +151,77 @@ function isiPopup(sifat: SifatTitik): string {
       <dl class="popup-titik__rincian">
         <dt>Jam jaga</dt>
         <dd>${tulisJam(sifat)}</dd>
-        <dt>Tarif</dt>
-        <dd>Tarif resmi belum diverifikasi</dd>
+        <dt>${NAMA_KENDARAAN.motor}</dt>
+        <dd>${teksRentang("motor")}</dd>
+        <dt>${NAMA_KENDARAAN.mobil}</dt>
+        <dd>${teksRentang("mobil")}</dd>
       </dl>
+      <p class="popup-titik__catatan">Kategori tarif titik ini belum diverifikasi, jadi yang bisa dipastikan hanya rentangnya. Pungutan di atas batas tertinggi berarti di luar ketentuan.</p>
+      ${sumber}
+      ${baris}
       ${catatanPresisi}
+      <button type="button" class="popup-titik__lapor" data-kode="${lolos(kode)}">Laporkan titik ini</button>
     </div>
   `;
+}
+
+/**
+ * Jarak haversine dalam meter.
+ *
+ * Dihitung di klien dari GeoJSON yang sudah dimuat, bukan lewat PostGIS:
+ * hasilnya seketika dan tetap benar saat jaringan mati — dua hal yang penting
+ * buat orang yang sedang berdiri di pinggir jalan.
+ */
+function jarakMeter(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const R = 6371000;
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLng = (lng2 - lng1) * rad;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function keRingkas(f: FiturTitik): TitikRingkas {
+  return {
+    kode: f.id,
+    alamat: f.properties.alamat,
+    lokasi: f.properties.lokasi,
+    wilayah: f.properties.wilayah,
+  };
+}
+
+/**
+ * Radius maksimum sebuah titik resmi boleh ditawarkan sebagai "mungkin ini yang
+ * kamu maksud".
+ *
+ * Tanpa ambang, tiga titik terdekat SELALU muncul betapapun jauhnya — pernah
+ * menawarkan titik 159 m dari pin, yang jelas bukan tempat yang dimaksud
+ * pelapor. 100 m masih memaklumi koordinat yang ditandai di tengah ruas jalan,
+ * tapi tidak lagi menawarkan titik dari blok sebelah.
+ */
+const RADIUS_TAWARAN_M = 100;
+
+function cariTerdekat(
+  fitur: FiturTitik[],
+  lat: number,
+  lng: number,
+  jumlah = 3,
+): Terdekat[] {
+  return fitur
+    .map((f) => ({
+      titik: keRingkas(f),
+      jarak: jarakMeter(lat, lng, f.geometry.coordinates[1], f.geometry.coordinates[0]),
+    }))
+    .filter((d) => d.jarak <= RADIUS_TAWARAN_M)
+    .sort((a, b) => a.jarak - b.jarak)
+    .slice(0, jumlah);
 }
 
 export function PetaTarif() {
@@ -135,6 +231,184 @@ export function PetaTarif() {
   const [statusTitik, setStatusTitik] = useState<Status>("memuat");
   const [jumlahTitik, setJumlahTitik] = useState(0);
   const [pesanLokasi, setPesanLokasi] = useState<string | null>(null);
+  const [sasaran, setSasaran] = useState<Sasaran | null>(null);
+  const fiturRef = useRef<FiturTitik[]>([]);
+  /**
+   * Jumlah laporan per titik. `null` selama belum termuat — dibedakan dari
+   * Map kosong, yang berarti sudah termuat dan memang nol.
+   */
+  const agregatRef = useRef<Map<string, number> | null>(null);
+  /** Gugus dan penandanya disimpan supaya ikonnya bisa disegarkan saat angka laporan tiba. */
+  const gugusRef = useRef<{ refreshClusters: () => void } | null>(null);
+  const penandaRef = useRef<Array<{ kode: string; penanda: Marker }>>([]);
+  const [agregatVersi, setAgregatVersi] = useState(0);
+  /** Jumlah laporan lokasi tak terdaftar per wilayah, untuk pil di atas peta. */
+  const [agregatWilayah, setAgregatWilayah] = useState<Map<
+    string,
+    number
+  > | null>(null);
+  const pinRef = useRef<Marker | null>(null);
+
+  /**
+   * Jumlah laporan diambil DARI PERAMBAN, bukan dari Server Component.
+   *
+   * /warga adalah halaman statis. Menaruh query Supabase di server membuatnya
+   * dinamis, dan peta yang seharusnya bisa dibuka tanpa internet jadi butuh
+   * jaringan hanya untuk dirender. Dengan cara ini, peta dan 1.235 titiknya
+   * tetap tampil penuh saat jaringan mati — hanya angkanya yang tidak muncul.
+   *
+   * View laporan_agregat_titik sengaja dibuat security_invoker = false di
+   * basis data, jadi kunci anon bisa membaca angkanya tanpa pernah bisa
+   * membaca satu baris laporan pun.
+   */
+  useEffect(() => {
+    let dibatalkan = false;
+
+    void (async () => {
+      const { data, error } = await createClient()
+        .from("laporan_agregat_titik")
+        .select("titik_kode, jumlah");
+
+      if (dibatalkan) return;
+      if (error) {
+        console.error("[peta-tarif] gagal memuat jumlah laporan:", error);
+        return;
+      }
+
+      // Satu titik bisa punya beberapa baris (satu per jenis laporan), jadi
+      // dijumlahkan dulu.
+      const total = new Map<string, number>();
+      for (const baris of data ?? []) {
+        const kode = baris.titik_kode as string | null;
+        if (!kode) continue;
+        total.set(kode, (total.get(kode) ?? 0) + Number(baris.jumlah ?? 0));
+      }
+      agregatRef.current = total;
+      setAgregatVersi((v) => v + 1);
+    })();
+
+    void (async () => {
+      const { data, error } = await createClient()
+        .from("laporan_agregat_wilayah")
+        .select("bagian_kota, jumlah");
+
+      if (dibatalkan) return;
+      if (error) {
+        console.error("[peta-tarif] gagal memuat agregat wilayah:", error);
+        return;
+      }
+
+      const total = new Map<string, number>();
+      for (const baris of data ?? []) {
+        const wilayah = baris.bagian_kota as string | null;
+        if (!wilayah) continue;
+        total.set(wilayah, (total.get(wilayah) ?? 0) + Number(baris.jumlah ?? 0));
+      }
+      setAgregatWilayah(total);
+    })();
+
+    return () => {
+      dibatalkan = true;
+    };
+  }, []);
+
+  /**
+   * Pil jumlah laporan per wilayah, digambar DI ATAS PETA.
+   *
+   * Sengaja dibuat sangat berbeda dari lingkaran gugus: lingkaran cokelat
+   * berisi angka menghitung TITIK PARKIR, pil ini menghitung LAPORAN. Dua angka
+   * yang artinya jauh berbeda tidak boleh tampil dengan bentuk yang mirip.
+   *
+   * interactive: false — pil ini tidak boleh menelan ketukan peta, karena
+   * ketukan itulah yang memulai alur pelaporan lokasi tidak terdaftar.
+   */
+  useEffect(() => {
+    const peta = petaRef.current;
+    if (!peta || agregatWilayah === null || statusTitik !== "siap") return;
+
+    const L = (window as unknown as { L?: typeof import("leaflet") }).L;
+    if (!L) return;
+
+    // Titik tengah tiap wilayah dihitung dari titik parkir yang benar-benar ada
+    // di sana, bukan koordinat yang ditulis tangan — jadi pilnya selalu jatuh
+    // di dalam wilayahnya sendiri.
+    const rerata = new Map<string, { lat: number; lng: number; n: number }>();
+    for (const f of fiturRef.current) {
+      const w = f.properties.wilayah;
+      const a = rerata.get(w) ?? { lat: 0, lng: 0, n: 0 };
+      a.lat += f.geometry.coordinates[1];
+      a.lng += f.geometry.coordinates[0];
+      a.n += 1;
+      rerata.set(w, a);
+    }
+
+    const penanda: Marker[] = [];
+    for (const wilayah of WILAYAH) {
+      const titik = rerata.get(wilayah);
+      if (!titik || titik.n === 0) continue;
+      const jumlah = agregatWilayah.get(wilayah) ?? 0;
+
+      const m = L.marker([titik.lat / titik.n, titik.lng / titik.n], {
+        interactive: false,
+        keyboard: false,
+        icon: L.divIcon({
+          className: "",
+          html: `<span class="pil-wilayah${jumlah > 0 ? " pil-wilayah--ada" : ""}">${wilayah} · ${jumlah} laporan</span>`,
+        }),
+      });
+      m.addTo(peta);
+      penanda.push(m);
+    }
+
+    // Di zoom dekat, pengelompokan wilayah kehilangan arti dan pilnya hanya
+    // menutupi jalan yang sedang dilihat orang.
+    const aturTampak = () => {
+      const tampil = peta.getZoom() <= 13;
+      for (const m of penanda) {
+        const el = m.getElement();
+        if (el) el.style.display = tampil ? "" : "none";
+      }
+    };
+    aturTampak();
+    peta.on("zoomend", aturTampak);
+
+    return () => {
+      peta.off("zoomend", aturTampak);
+      for (const m of penanda) m.remove();
+    };
+  }, [agregatWilayah, statusTitik]);
+
+  /**
+   * Angka laporan hampir selalu tiba setelah 1.235 penanda selesai dipasang,
+   * jadi ikonnya harus disegarkan sekali — kalau tidak, seluruh peta akan
+   * membeku menampilkan nol padahal datanya sudah ada.
+   */
+  useEffect(() => {
+    if (agregatVersi === 0 || statusTitik !== "siap") return;
+    const L = (window as unknown as { L?: typeof import("leaflet") }).L;
+    if (!L) return;
+
+    for (const { kode, penanda } of penandaRef.current) {
+      const jumlah = agregatRef.current?.get(kode) ?? 0;
+      if (jumlah === 0) continue;
+      penanda.setIcon(
+        L.divIcon({
+          html: `<span class="pin-parkir pin-parkir--lapor">${jumlah}</span>`,
+          className: "",
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+          popupAnchor: [0, -12],
+        }),
+      );
+    }
+    gugusRef.current?.refreshClusters();
+  }, [agregatVersi, statusTitik]);
+
+  const tutupLapor = useCallback(() => {
+    pinRef.current?.remove();
+    pinRef.current = null;
+    setSasaran(null);
+  }, []);
 
   useEffect(() => {
     const wadah = wadahRef.current;
@@ -311,44 +585,151 @@ export function PetaTarif() {
         // yang sama persis. Tanpa spiderfy, 15 di antaranya tertimbun dan tidak
         // akan pernah bisa diketuk.
         spiderfyOnMaxZoom: true,
-        iconCreateFunction: (kelompok) =>
-          L.divIcon({
-            html: `<span class="gugus-parkir">${kelompok.getChildCount()}</span>`,
+        // Angka di lingkaran gugus adalah JUMLAH LAPORAN warga dari seluruh
+        // titik parkir di dalamnya — bukan jumlah titiknya. Itu angka yang
+        // dicari orang saat membuka peta transparansi; jumlah titiknya sendiri
+        // tetap bisa dilihat lewat title saat disorot.
+        iconCreateFunction: (kelompok) => {
+          const anak = kelompok.getAllChildMarkers();
+          const total = anak.reduce(
+            (n, m) =>
+              n +
+              (agregatRef.current?.get(
+                (m as unknown as { __kode?: string }).__kode ?? "",
+              ) ?? 0),
+            0,
+          );
+          return L.divIcon({
+            html: `<span class="gugus-parkir${total > 0 ? " gugus-parkir--lapor" : ""}" title="${total} laporan warga dari ${anak.length} titik parkir di area ini">${total}</span>`,
             className: "",
             iconSize: [38, 38],
-          }),
+          });
+        },
       });
 
       // L.Icon bawaan Leaflet menunjuk berkas PNG lewat jalur relatif yang
       // rusak begitu di-bundle Next.js — penandanya diam-diam tidak muncul.
       // divIcon digambar sepenuhnya lewat CSS, jadi tidak ada berkas gambar
       // yang bisa hilang.
-      const ikonTitik = L.divIcon({
-        html: '<span class="pin-parkir"></span>',
-        className: "",
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-        popupAnchor: [0, -8],
-      });
+      // Titik yang punya laporan membesar dan menunjukkan angkanya; yang belum
+      // pernah dilaporkan tetap titik kecil. Angka "0" di lingkaran 16px tidak
+      // terbaca, dan 1.235 titik yang semuanya berlabel nol akan menutupi peta
+      // itu sendiri — angkanya tetap disebut apa adanya di dalam popup.
+      const buatIkonTitik = (jumlah: number) =>
+        jumlah > 0
+          ? L.divIcon({
+              html: `<span class="pin-parkir pin-parkir--lapor">${jumlah}</span>`,
+              className: "",
+              iconSize: [24, 24],
+              iconAnchor: [12, 12],
+              popupAnchor: [0, -12],
+            })
+          : L.divIcon({
+              html: '<span class="pin-parkir"></span>',
+              className: "",
+              iconSize: [16, 16],
+              iconAnchor: [8, 8],
+              popupAnchor: [0, -8],
+            });
 
+      const daftarPenanda: Array<{ kode: string; penanda: Marker }> = [];
       for (const fitur of data.features) {
         const [lng, lat] = fitur.geometry.coordinates;
         const penanda = L.marker([lat, lng], {
-          icon: ikonTitik,
+          icon: buatIkonTitik(agregatRef.current?.get(fitur.id) ?? 0),
           keyboard: false,
           alt: `Titik parkir ${fitur.properties.alamat}`,
         });
-        penanda.bindPopup(isiPopup(fitur.properties), {
-          closeButton: true,
-          maxWidth: 280,
-          autoPanPadding: [16, 16],
-        });
+        // Fungsi, bukan string: Leaflet memanggilnya setiap popup dibuka, jadi
+        // jumlah laporan yang tiba setelah fetch selesai langsung ikut tampil
+        // tanpa perlu membangun ulang 1.235 penanda.
+        penanda.bindPopup(
+          () =>
+            isiPopup(
+              fitur.properties,
+              fitur.id,
+              agregatRef.current?.get(fitur.id) ?? (agregatRef.current ? 0 : null),
+            ),
+          {
+            closeButton: true,
+            maxWidth: 280,
+            autoPanPadding: [16, 16],
+          },
+        );
+        // Dipakai iconCreateFunction untuk menjumlahkan laporan seluruh anak gugus.
+        (penanda as unknown as { __kode: string }).__kode = fitur.id;
+        daftarPenanda.push({ kode: fitur.id, penanda });
         gugus.addLayer(penanda);
       }
+      penandaRef.current = daftarPenanda;
+      gugusRef.current = gugus as unknown as { refreshClusters: () => void };
 
       gugus.addTo(peta);
+      fiturRef.current = data.features;
       setJumlahTitik(data.features.length);
       setStatusTitik("siap");
+
+      // --- Jalur A: tombol di dalam popup ---------------------------------
+      // Di-wire lewat popupopen, bukan onclick inline di string HTML: atribut
+      // onclick hanya bisa memanggil fungsi global, dan itu berarti membocorkan
+      // penangan React ke window.
+      peta.on("popupopen", (peristiwa) => {
+        const tombol = peristiwa.popup
+          .getElement()
+          ?.querySelector<HTMLButtonElement>(".popup-titik__lapor");
+        if (!tombol) return;
+        tombol.onclick = () => {
+          const fitur = fiturRef.current.find((f) => f.id === tombol.dataset.kode);
+          if (!fitur) return;
+          peta?.closePopup();
+          setSasaran({ mode: "titik", titik: keRingkas(fitur) });
+        };
+      });
+
+      // --- Jalur B: ketuk area kosong -------------------------------------
+      const ikonPinSementara = L.divIcon({
+        html: '<span class="pin-sementara"></span>',
+        className: "",
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+
+      const perbaruiPilihan = (lat: number, lng: number) => {
+        setSasaran({
+          mode: "pilih",
+          lat,
+          lng,
+          terdekat: cariTerdekat(fiturRef.current, lat, lng),
+        });
+      };
+
+      peta.on("click", (peristiwa) => {
+        if (!peta) return;
+        const { lat, lng } = peristiwa.latlng;
+
+        // Ketukan pertama HANYA menaruh pin dan membuka daftar pilihan.
+        // Sengaja tidak langsung membuka formulir: banyak koordinat kita cuma
+        // perkiraan tengah ruas jalan, jadi sistem tidak boleh memutuskan
+        // sendiri bahwa sebuah lokasi "tidak terdaftar". Yang memutuskan adalah
+        // orang yang sedang berdiri di sana.
+        if (pinRef.current) {
+          pinRef.current.setLatLng([lat, lng]);
+        } else {
+          const pin = L.marker([lat, lng], {
+            icon: ikonPinSementara,
+            draggable: true,
+            keyboard: false,
+            alt: "Pin lokasi laporan, bisa digeser",
+          });
+          pin.on("dragend", () => {
+            const posisi = pin.getLatLng();
+            perbaruiPilihan(posisi.lat, posisi.lng);
+          });
+          pin.addTo(peta);
+          pinRef.current = pin;
+        }
+        perbaruiPilihan(lat, lng);
+      });
     };
 
     void pasang().catch((galat: unknown) => {
@@ -366,6 +747,8 @@ export function PetaTarif() {
       pengamatUkuran = null;
       penandaLokasi?.remove();
       penandaLokasi = null;
+      pinRef.current?.remove();
+      pinRef.current = null;
       // Wajib. Tanpa ini Leaflet melempar "Map container is already
       // initialized" saat StrictMode menjalankan efek dua kali, dan tiap
       // kunjungan ulang ke /warga menyisakan peta lama beserta cache tile-nya
@@ -495,6 +878,16 @@ export function PetaTarif() {
           </svg>
         </button>
       </div>
+
+      {sasaran && (
+        <LaporWarga
+          // Ganti key = mount ulang: formulir untuk titik lain harus dimulai
+          // bersih, bukan mewarisi isian titik sebelumnya.
+          key={sasaran.mode === "titik" ? `titik-${sasaran.titik.kode}` : "pilih"}
+          sasaran={sasaran}
+          onTutup={tutupLapor}
+        />
+      )}
 
       {/* Dibaca pembaca layar sebagai pengganti isi peta yang berupa canvas. */}
       <p className="sr-only" role="status">

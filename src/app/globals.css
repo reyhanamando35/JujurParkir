@@ -134,8 +134,10 @@ body {
   box-shadow: 0 0 0 1px rgb(13 22 38 / 0.35);
 }
 
-/* Gugus penanda. Angkanya harus terbaca, jadi teks terang di atas aksen gelap
-   — pasangan yang rasio kontrasnya sudah diverifikasi di token. */
+/* Gugus penanda. Angkanya adalah JUMLAH LAPORAN warga dari titik-titik parkir
+   di dalamnya, bukan jumlah titiknya.
+   Nol dibiarkan tenang (abu) supaya peta tidak penuh lingkaran mencolok yang
+   semuanya berarti "tidak ada apa-apa"; yang punya laporan menyala aksen. */
 .gugus-parkir {
   display: flex;
   align-items: center;
@@ -143,12 +145,33 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 9999px;
-  background: var(--accent);
-  border: 2px solid var(--surface);
-  box-shadow: 0 0 0 1px rgb(13 22 38 / 0.35);
-  color: var(--accent-ink);
+  background: rgb(var(--bg-rgb) / 0.94);
+  border: 2px solid var(--line);
+  box-shadow: 0 0 0 1px rgb(13 22 38 / 0.2);
+  color: var(--ink-muted);
   font-size: 13px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gugus-parkir--lapor {
+  background: var(--accent);
+  border-color: var(--surface);
+  box-shadow: 0 0 0 1px rgb(13 22 38 / 0.35);
+  color: var(--accent-ink);
+}
+
+/* Titik tunggal yang punya laporan: membesar dan menunjukkan angkanya. */
+.pin-parkir--lapor {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -210,3 +233,89 @@ body {
   font-size: 13px;
   color: var(--ink-muted);
 }
+
+/* Pin sementara Jalur B. Sengaja beda bentuk dari pin titik resmi supaya tidak
+   tertukar: ini penanda yang BELUM jadi laporan dan masih bisa digeser. */
+.pin-sementara {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 0 1px rgb(13 22 38 / 0.35);
+  cursor: grab;
+}
+
+.popup-titik__sumber {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Penanda angka contoh. Diberi bidang sendiri, bukan sekadar teks abu, supaya
+   tidak terbaca sekilas sebagai tarif resmi. */
+.popup-titik__contoh {
+  margin-top: 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.popup-titik__lapor {
+  margin-top: 12px;
+  width: 100%;
+  border-radius: 10px;
+  background: var(--accent);
+  padding: 9px 12px;
+  color: var(--accent-ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.popup-titik__lapor:hover {
+  background: var(--accent-strong);
+}
+
+/* Baris jumlah laporan di popup. Diberi latar sendiri supaya terbaca sebagai
+   angka warga, bukan sebagai bagian dari data resmi Dishub di atasnya. */
+.popup-titik__laporan {
+  margin-top: 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+/* Pil jumlah laporan per wilayah di atas peta.
+   Bentuknya sengaja jauh berbeda dari lingkaran gugus titik parkir: persegi
+   membulat, bukan lingkaran, dan selalu membawa kata "laporan" supaya dua
+   angka yang artinya berbeda tidak pernah tertukar. */
+.pil-wilayah {
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgb(var(--bg-rgb) / 0.94);
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink-muted);
+  box-shadow: 0 1px 3px rgb(13 22 38 / 0.18);
+}
+
+/* Wilayah yang punya laporan diberi warna aksen supaya langsung ketemu mata. */
+.pil-wilayah--ada {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
