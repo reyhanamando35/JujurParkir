@@ -6,8 +6,24 @@ export type PeranPetugas = "dishub" | "katar";
 
 export type Petugas = {
   id: string;
-  username: string;
+  /**
+   * Diambil dari akun Auth lewat getUser(), BUKAN dari kolom di tabel petugas.
+   *
+   * 0001_init.sql sempat menyalin email ke tabel petugas dengan alasan kunci
+   * anon tidak boleh membaca skema auth. Alasan itu berlaku untuk membaca
+   * email petugas LAIN — untuk petugas yang sedang masuk, getUser() sudah
+   * mengembalikan emailnya. Menyalinnya berarti dua sumber kebenaran yang bisa
+   * berbeda isi begitu email diganti lewat Supabase Auth.
+   */
   email: string;
+  nama: string;
+  peran: PeranPetugas;
+  wilayah_id: number | null;
+};
+
+/** Bentuk baris tabel petugas — sengaja tanpa email, lihat catatan di atas. */
+type BarisPetugas = {
+  id: string;
   nama: string;
   peran: PeranPetugas;
   wilayah_id: number | null;
@@ -36,12 +52,17 @@ export const getPetugas = cache(async (): Promise<Petugas | null> => {
 
   // RLS ("baca diri sendiri") sudah membatasi baris ke auth.uid(),
   // filter .eq() di sini hanya mempertegas maksudnya.
+  //
+  // Kolom yang diminta dijaga tetap sama dengan yang benar-benar ada di
+  // tabel: satu nama kolom yang meleset membuat PostgREST menolak SELURUH
+  // query, getPetugas() mengembalikan null, dan petugas yang kata sandinya
+  // benar tetap terlempar balik ke halaman masuk tanpa pesan apa pun.
   const { data } = await supabase
     .from("petugas")
-    .select("id, username, email, nama, peran, wilayah_id")
+    .select("id, nama, peran, wilayah_id")
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<BarisPetugas>();
 
   if (!data) return null;
-  return data as Petugas;
+  return { ...data, email: user.email ?? "" };
 });
