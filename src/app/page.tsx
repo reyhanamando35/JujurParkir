@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { ParticleNetwork } from "@/components/particle-network";
@@ -55,20 +56,21 @@ export default function Home() {
         <div className="mx-auto w-full max-w-2xl">
           {/* 1. Identitas */}
           <div className="flex items-center gap-2">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              focusable="false"
-              className="size-5 shrink-0 text-accent"
-            >
-              <path d="M12 21s6.5-5.4 6.5-10.5a6.5 6.5 0 1 0-13 0C5.5 15.6 12 21 12 21Z" />
-              <circle cx="12" cy="10.5" r="2.25" />
-            </svg>
+            {/*
+              width/height 40 menyamai rasio asli logo (1024x1024) supaya Next
+              memesan ruangnya sejak HTML pertama — tidak ada geseran tata letak
+              saat gambar selesai dimuat. Tinggi tampilnya diatur CSS: 32px di
+              mobile, 40px sejak breakpoint sm. `w-auto` wajib menemani `h-*`,
+              kalau tidak next/image memperingatkan rasio yang diubah sebelah.
+            */}
+            <Image
+              src="/logo-JujurParkir.png"
+              alt="Logo JujurParkir"
+              width={40}
+              height={40}
+              loading="eager"
+              className="h-8 w-auto shrink-0 sm:h-10"
+            />
             <span className="text-lg font-extrabold tracking-tight text-ink">
               JujurParkir
             </span>
