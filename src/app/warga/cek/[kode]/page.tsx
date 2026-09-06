@@ -18,6 +18,9 @@ type HasilCek = {
 function tanggal(nilai: string | null): string {
   if (!nilai) return "—";
   return new Date(nilai).toLocaleString("id-ID", {
+    // Halaman ini Server Component: tanpa zona eksplisit ia memakai zona
+    // runtime Vercel (UTC) dan menampilkan jam tujuh jam lebih awal.
+    timeZone: "Asia/Jakarta",
     dateStyle: "long",
     timeStyle: "short",
   });

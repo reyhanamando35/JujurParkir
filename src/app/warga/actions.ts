@@ -46,6 +46,31 @@ type HasilKuota = {
 };
 
 /**
+ * Membaca waktu kejadian jadi instan yang tidak bergantung zona server.
+ *
+ * Klien sudah mengirim ISO ber-offset (lihat `aksi` di lapor-warga.tsx), tapi
+ * nilai yang datang apa adanya dari `datetime-local` — formulir tanpa JS, atau
+ * POST langsung ke Server Action — hanya berisi jam dinding tanpa zona. Untuk
+ * nilai seperti itu `new Date()` memakai zona runtime: WIB di mesin dev, UTC di
+ * Vercel. Satu nilai yang sama jadi berarti dua instan berbeda tergantung di
+ * mana kodenya jalan, dan di produksi jam sekarang terbaca tujuh jam di masa
+ * depan lalu ditolak pemeriksaan "tidak boleh di masa depan" di bawah.
+ *
+ * Jam dinding tanpa zona karena itu dianggap WIB — zona semua pelapor di
+ * Surabaya — bukan zona server. Indonesia tidak memakai DST, jadi offset
+ * tetapnya aman ditulis pasti.
+ */
+function bacaWaktu(mentah: string): Date {
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/.test(mentah)) return new Date(mentah);
+  // `datetime-local` biasanya tanpa detik; dilengkapi dulu supaya offsetnya
+  // tidak ditempel ke string yang bentuknya belum utuh.
+  const utuh = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(mentah)
+    ? `${mentah}:00`
+    : mentah;
+  return new Date(`${utuh}+07:00`);
+}
+
+/**
  * Jam reset dalam kalimat yang bisa dibaca, mis. "besok pukul 00.00 WIB".
  *
  * Waktunya datang dari basis data, bukan dari jam peramban: perangkat yang
@@ -128,7 +153,7 @@ export async function kirimLaporan(
   }
 
   const waktuMentah = String(formData.get("waktu_kejadian") ?? "").trim();
-  const waktu = waktuMentah.length > 0 ? new Date(waktuMentah) : new Date();
+  const waktu = waktuMentah.length > 0 ? bacaWaktu(waktuMentah) : new Date();
   if (Number.isNaN(waktu.getTime())) {
     return gagal("Waktu kejadian tidak terbaca.");
   }
