@@ -183,21 +183,15 @@ Yang **tidak** termasuk dalam proyek ini: pembayaran parkir, integrasi ke sistem
 
 <div align="center">
 
-
-<img src="screenshot/06-hp-halaman-awal.jpg" alt="Halaman awal di ponsel" width="240"/>| 
-<img src="screenshot/07-hp-peta.jpg" alt="Peta warga di ponsel" width="240"/> |
-<img src="screenshot/08-hp-pencarian.jpg" alt="Saran pencarian di ponsel" width="240"/> |
-|:--:|:--:|:--:|
+| <img src="screenshot/06-hp-halaman-awal.jpg" alt="Halaman awal di ponsel" width="240"/> | <img src="screenshot/07-hp-peta.jpg" alt="Peta warga di ponsel" width="240"/> | <img src="screenshot/08-hp-pencarian.jpg" alt="Saran pencarian di ponsel" width="240"/> |
+| :---: | :---: | :---: |
 | *Halaman awal* | *Peta + kotak pencarian* | *Saran pencarian per kata* |
 
-<img src="screenshot/09-hp-popup-titik.jpg" alt="Popup titik di ponsel" width="240"/>|
-<img src="screenshot/10-hp-form-laporan.jpg"  alt="Form laporan di ponsel" width="240"/> |
-<img src="screenshot/10-hp-form-laporan (1).jpg" alt="Form laporan di ponsel" width="240"/> |
-<img src="screenshot/11-hp-dasbor.jpg" alt="Dasbor petugas di ponsel" width="240"/> |
-<img src="screenshot/11-hp-dasbor (1).jpg" alt="Dasbor petugas di ponsel" width="240"/> |
-<img src="screenshot/11-hp-dasbor (2).jpg" alt="Dasbor petugas di ponsel" width="240"/> |
+<br>
 
-|:--:|:--:|:--:|
+| <img src="screenshot/09-hp-popup-titik.jpg" alt="Popup titik di ponsel" width="240"/> | <img src="screenshot/10-hp-form-laporan.jpg" alt="Form laporan di ponsel" width="240"/> | <img src="screenshot/10-hp-form-laporan (1).jpg" alt="Form laporan di ponsel" width="240"/> |
+| :---: | :---: | :---: |
+| <img src="screenshot/11-hp-dasbor.jpg" alt="Dasbor petugas di ponsel" width="240"/> | <img src="screenshot/11-hp-dasbor (1).jpg" alt="Dasbor petugas di ponsel" width="240"/> | <img src="screenshot/11-hp-dasbor (2).jpg" alt="Dasbor petugas di ponsel" width="240"/> |
 | *Popup titik — isinya dapat digulir* | *Form laporan — tanpa akun* | *Dasbor petugas* |
 
 </div>
