@@ -10,13 +10,36 @@ const jakarta = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+// Dipakai ulang oleh <title>/<meta description> dan blok Open Graph di bawah.
+// Ditulis sekali supaya judul di tab dan judul di pratinjau tautan tidak bisa
+// diam-diam berbeda isi.
+const JUDUL = "JujurParkir · Tarif Parkir Resmi Kota Surabaya";
+const DESKRIPSI =
+  "Cek tarif resmi parkir tepi jalan umum Kota Surabaya dan laporkan pungutan yang tidak sesuai. Terbuka untuk siapa saja, tanpa perlu akun.";
+
 export const metadata: Metadata = {
   title: {
-    default: "JujurParkir",
+    // Judul telanjang "JujurParkir" tidak memberi tahu apa pun ke orang yang
+    // baru menerima tautannya; nama saja disimpan untuk template halaman anak.
+    default: JUDUL,
     template: "%s · JujurParkir",
   },
-  description:
-    "Cek tarif resmi parkir tepi jalan umum Kota Surabaya dan laporkan pungutan yang tidak sesuai. Terbuka untuk siapa saja, tanpa perlu akun.",
+  description: DESKRIPSI,
+  // WhatsApp, X, dan Slack membaca tag og:* lebih dulu dan hanya jatuh ke
+  // <title>/<meta description> kalau tag itu tidak ada — hasilnya sering
+  // terpotong tidak rapi. Ditulis eksplisit supaya pratinjaunya pasti.
+  openGraph: {
+    title: JUDUL,
+    description: DESKRIPSI,
+    siteName: "JujurParkir",
+    locale: "id_ID",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: JUDUL,
+    description: DESKRIPSI,
+  },
 };
 
 export const viewport: Viewport = {
