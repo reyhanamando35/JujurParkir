@@ -45,6 +45,10 @@ const SARINGAN = ["semua", ...STATUS_LAPORAN] as const;
 function tanggal(nilai: string | null): string {
   if (!nilai) return "—";
   return new Date(nilai).toLocaleString("id-ID", {
+    // Dikunci ke WIB, bukan zona perangkat petugas: laporan dibaca sebagai
+    // waktu Surabaya, dan perangkat yang zonanya meleset tidak boleh diam-diam
+    // menggeser jam kejadian yang jadi dasar tindak lanjut.
+    timeZone: "Asia/Jakarta",
     dateStyle: "medium",
     timeStyle: "short",
   });

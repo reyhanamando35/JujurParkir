@@ -199,6 +199,19 @@ export function LaporWarga({
       return;
     }
 
+    // `datetime-local` mengirim jam dinding tanpa zona ("2026-09-06T21:30").
+    // Server memparsenya dengan zona runtime-nya sendiri — WIB di mesin dev,
+    // UTC di Vercel — jadi jam yang baru saja dipilih terbaca tujuh jam di
+    // masa depan dan ditolak validasi. Diubah di sini jadi instan mutlak
+    // memakai zona perangkat pengirim, satu-satunya pihak yang tahu zona itu.
+    const jamDinding = String(data.get("waktu_kejadian") ?? "").trim();
+    if (jamDinding.length > 0) {
+      const saat = new Date(jamDinding);
+      if (!Number.isNaN(saat.getTime())) {
+        data.set("waktu_kejadian", saat.toISOString());
+      }
+    }
+
     // Berkas yang ikut terkirim adalah hasil sandi ulang, bukan berkas asli
     // dari galeri. Input file-nya sendiri tidak punya atribut name.
     if (fotoSiap) data.set("foto", fotoSiap);
