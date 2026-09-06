@@ -199,7 +199,7 @@ Yang **tidak** termasuk dalam proyek ini: pembayaran parkir, integrasi ke sistem
 | Petugas | | |
 |:--:|:--:|:--:|
 | <img src="screenshot/11-hp-dasbor.jpg" alt="Dasbor petugas di ponsel, bagian atas" width="240"/> | <img src="screenshot/11-hp-dasbor%20(1).jpg" alt="Grafik dasbor sebagai daftar angka di ponsel" width="240"/> | <img src="screenshot/11-hp-dasbor%20(2).jpg" alt="Dasbor petugas di ponsel, bagian laporan warga" width="240"/> |
-| *Dasbor Dishub (atas) — kondisi data titik parkir* | *Grafik berubah jadi daftar angka di layar sempit — bukan grafik yang gagal dirender* | *Laporan warga — grafik harian, penyaring, dan tabel yang dapat digeser mendatar* |
+| *Dasbor Dishub (atas), kondisi data titik parkir* | *Grafik berubah jadi daftar angka di layar sempit, bukan grafik yang gagal dirender* | *Laporan warga, grafik harian, penyaring, dan tabel yang dapat digeser mendatar* |
 
 </div>
 
