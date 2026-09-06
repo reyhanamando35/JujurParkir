@@ -1,0 +1,46 @@
+MIT License
+
+Copyright (c) 2026 [ISI: Nama Tim / Nama Pemegang Hak Cipta]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+CATATAN TENTANG DATA DAN ASET PIHAK KETIGA
+
+Lisensi MIT di atas berlaku untuk KODE SUMBER proyek ini. Data dan aset
+berikut memiliki sumber serta ketentuan tersendiri:
+
+1. Data titik parkir tepi jalan umum (1.235 baris) berasal dari publikasi
+   Dinas Perhubungan Kota Surabaya. Hak dan ketentuan penggunaannya mengikuti
+   ketentuan penyedia data tersebut.
+
+2. Koordinat pada berkas public/data/titik-parkir.geojson dihasilkan melalui
+   geocoding menggunakan Nominatim (OpenStreetMap). Data OpenStreetMap
+   tersedia di bawah Open Database License (ODbL).
+
+3. Peta dasar pada public/tiles/surabaya.pmtiles dibangun dari data
+   OpenStreetMap dan disajikan melalui Protomaps. Atribusi
+   "Leaflet | Protomaps © OpenStreetMap" WAJIB tetap ditampilkan pada
+   antarmuka peta sebagai syarat lisensi, dan tidak boleh ditutupi oleh
+   elemen antarmuka lain.
+
+4. Angka tarif parkir merujuk pada Peraturan Daerah Kota Surabaya Nomor 7
+   Tahun 2023 tentang Penyelenggaraan Perparkiran dan Retribusi Parkir.
+   Peraturan perundang-undangan bukan objek hak cipta.
