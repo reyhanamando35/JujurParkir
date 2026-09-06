@@ -20,14 +20,10 @@ logger = logging.getLogger(__name__)
 
 # ============================================================
 # BOUNDING BOX SURABAYA
-# Membatasi pencarian Nominatim hanya di area Surabaya
-# Format: (south_lat, north_lat, west_lon, east_lon)
+# Membatasi pencarian  hanya di area Surabaya
 # ============================================================
 SURABAYA_VIEWBOX = (112.6, -7.4, 112.85, -7.15)  # (west, south, east, north)
 
-# ============================================================
-# MAPPING SINGKATAN → NAMA LENGKAP JALAN DI SURABAYA
-# ============================================================
 SINGKATAN_MAP = {
     "ACH JAIS": "Achmad Jais",
     "ACH ": "Achmad ",
@@ -51,10 +47,8 @@ SINGKATAN_MAP = {
     "PANDIGILING": "Pandegiling",
 }
 
-# ============================================================
 # DAFTAR AWALAN YANG MENUNJUKKAN DATA BUKAN NAMA JALAN
-# (kolom Alamat dan Lokasi mungkin tertukar)
-# ============================================================
+
 BUKAN_JALAN_PREFIX = [
     "DEPAN ", "SAMPING ", "BELAKANG ",
     "PKL", "RM ", "RM.", "TOKO ", "DEPOT ",
@@ -82,17 +76,11 @@ def bersihkan_alamat(alamat_raw):
     sorted_keys = sorted(SINGKATAN_MAP.keys(), key=len, reverse=True)
     for singkatan in sorted_keys:
         if singkatan in alamat.upper():
-            # Case-insensitive replace
             pattern = re.compile(re.escape(singkatan), re.IGNORECASE)
             alamat = pattern.sub(SINGKATAN_MAP[singkatan], alamat)
-
-    # Hapus suffix "SURABAYA" yang redundan (akan ditambahkan di query)
     alamat = re.sub(r'\s*SURABAYA\s*$', '', alamat, flags=re.IGNORECASE)
-    # Hapus tanda " - " di akhir
     alamat = re.sub(r'\s*-\s*$', '', alamat)
-    # Hapus karakter aneh
     alamat = re.sub(r'[_]', ' ', alamat)
-    # Bersihkan spasi berlebihan
     alamat = re.sub(r'\s+', ' ', alamat).strip()
 
     return alamat
@@ -104,12 +92,10 @@ def ekstrak_nama_jalan(alamat):
     Contoh: "BUBUTAN 105" -> "Bubutan"
             "BARATA JAYA 42 60" -> "Barata Jaya"
     """
-    # Hapus angka dan karakter setelahnya (nomor rumah)
     # Pattern: ambil kata-kata huruf di awal, berhenti saat ketemu angka
     match = re.match(r'^([A-Za-z\s\-\.\']+)', alamat)
     if match:
         nama = match.group(1).strip()
-        # Hapus trailing dash/space
         nama = re.sub(r'[\s\-]+$', '', nama)
         return nama
     return alamat
@@ -215,14 +201,12 @@ def main():
     )
     geocode = RateLimiter(
         geolocator.geocode,
-        min_delay_seconds=1.5,  # Lebih aman dari batas 1 req/s
+        min_delay_seconds=1.5,  
         max_retries=3,
         error_wait_seconds=10
     )
 
-    # ============================================================
-    # PROSES GEOCODING
-    # ============================================================
+
     latitudes = []
     longitudes = []
     status_list = []
@@ -237,7 +221,6 @@ def main():
         alamat_raw = str(row.get('Alamat', ''))
         lokasi_raw = str(row.get('Lokasi', ''))
 
-        # Deteksi apakah kolom Alamat dan Lokasi tertukar
         if apakah_alamat_tertukar(alamat_raw) and not apakah_alamat_tertukar(lokasi_raw):
             logger.info(f"Row {row_num}: Kolom tertukar, gunakan Lokasi '{lokasi_raw}' sebagai alamat")
             alamat_untuk_geocode = lokasi_raw
@@ -246,19 +229,16 @@ def main():
             alamat_untuk_geocode = alamat_raw
             lokasi_untuk_fallback = lokasi_raw
 
-        # Bersihkan alamat
         alamat_bersih = bersihkan_alamat(alamat_untuk_geocode)
 
         logger.info(f"[{row_num}/{total}] Proses: '{alamat_raw}' -> '{alamat_bersih}'")
 
-        # Geocoding dengan fallback
         hasil = geocode_dengan_fallback(geocode, alamat_bersih, lokasi_untuk_fallback, row_num)
 
         if hasil:
             lat = hasil.latitude
             lng = hasil.longitude
 
-            # Validasi: pastikan koordinat masih di area Surabaya
             if -7.5 <= lat <= -7.1 and 112.5 <= lng <= 112.9:
                 latitudes.append(lat)
                 longitudes.append(lng)
@@ -276,13 +256,10 @@ def main():
             status_list.append("GAGAL")
             gagal += 1
 
-        # Progress update setiap 50 baris
         if row_num % 50 == 0:
             logger.info(f"=== PROGRESS: {row_num}/{total} | Sukses: {sukses} | Gagal: {gagal} ===")
 
-    # ============================================================
     # SIMPAN HASIL
-    # ============================================================
     df['lat'] = latitudes
     df['lng'] = longitudes
     df['geocode_status'] = status_list
@@ -296,9 +273,6 @@ def main():
     df_clean.to_csv("titik_parkir_geocoded.csv", index=False, encoding='utf-8-sig')
     logger.info(f"Data bersih disimpan ke titik_parkir_geocoded.csv")
 
-    # ============================================================
-    # RINGKASAN
-    # ============================================================
     logger.info("=" * 60)
     logger.info(f"SELESAI!")
     logger.info(f"  Total data    : {total}")
