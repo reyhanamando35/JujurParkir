@@ -143,6 +143,23 @@ export default function Home() {
             Warga tidak perlu membuat akun. Masuk hanya diperlukan bagi petugas
             Dishub dan Kepala Pelataran.
           </p>
+
+          {/*
+            Pintu masuk cek status. Sebelumnya satu-satunya tautan ke sana ada
+            di layar sukses tepat setelah mengirim laporan — begitu panel itu
+            ditutup, pelapor tidak punya jalan kembali sama sekali. Padahal
+            kode 6 karakter itu satu-satunya pegangannya, karena laporannya
+            anonim dan tidak ada email untuk mengirim ulang.
+          */}
+          <p className="mt-3 max-w-[46ch] text-pretty text-sm leading-normal text-ink-muted">
+            Sudah pernah melapor?{" "}
+            <Link
+              href="/warga/cek"
+              className="rounded-sm text-accent underline underline-offset-4 transition-colors duration-150 ease-out hover:text-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+            >
+              Cek status laporanmu dengan kode.
+            </Link>
+          </p>
         </div>
       </main>
     </>

@@ -67,6 +67,20 @@ export default function WargaPage() {
         className="shrink-0 border-t border-line bg-surface px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3.5 sm:px-6"
       >
         <CatatanPeta />
+
+        {/*
+          Selalu terlihat, tidak ikut tersembunyi bersama catatan di atasnya:
+          inilah satu-satunya jalan pelapor kembali ke status laporannya setelah
+          panel sukses ditutup.
+        */}
+        <p className="mx-auto mt-3 max-w-3xl text-center text-sm leading-normal text-ink-muted">
+          <Link
+            href="/warga/cek"
+            className="rounded-sm underline underline-offset-4 transition-colors duration-150 ease-out hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+          >
+            Cek status laporan dengan kode
+          </Link>
+        </p>
       </footer>
     </main>
   );

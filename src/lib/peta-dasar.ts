@@ -22,9 +22,22 @@ export const PUSAT_AWAL = [-7.2756, 112.7378] as const;
 export const ZOOM_AWAL = 12;
 export const ZOOM_MIN = 11;
 export const ZOOM_MAKS = 18;
+/**
+ * WAJIB sama persis dengan bounds di header surabaya.pmtiles, bukan angka
+ * bulat yang kelihatan rapi.
+ *
+ * Sebelumnya kotak ini 112,55 di barat sementara data tile berhenti di 112,60.
+ * Selisih 0,05 derajat itu (~5,5 km) bisa digeser ke layar, dan yang tampil di
+ * sana bidang abu kosong dengan beberapa nama tempat yang lolos — peta terlihat
+ * rusak. Penjaga zoom di bawah menjaga viewport tetap DI DALAM kotak ini, jadi
+ * begitu kotaknya benar, tepi kosong tidak bisa masuk layar sama sekali.
+ *
+ * Kalau berkas tile diganti, baca ulang bounds-nya dari header dan sesuaikan
+ * angka di sini.
+ */
 export const BATAS_SURABAYA = [
-  [-7.4, 112.55],
-  [-7.15, 112.88],
+  [-7.4, 112.6],
+  [-7.16, 112.87],
 ] as const;
 
 /**

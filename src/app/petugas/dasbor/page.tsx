@@ -6,6 +6,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getPetugas } from "@/lib/auth";
+import { jelaskanGalat } from "@/lib/galat";
 import {
   LABEL_STATUS,
   labelJalur,
@@ -182,6 +183,47 @@ export default async function DasborPage() {
     .sort((a, b) => b.jumlah - a.jumlah)[0];
   const jamTerbanyak = [...dataJam].sort((a, b) => b.jumlah - a.jumlah)[0];
 
+  /**
+   * Titik yang kategori tarifnya belum bisa dipakai — dari BASIS DATA, bukan
+   * dari GeoJSON seperti tiga angka di atasnya.
+   *
+   * Harus begitu: GeoJSON dibangkitkan dari hasil scraping dan tidak punya
+   * kolom kategori sama sekali, sedangkan kategori ditetapkan petugas lewat
+   * /petugas/titik. Sebelum ini angkanya memakai `total`, yang kebetulan benar
+   * selama belum ada satu pun penetapan — dan akan diam-diam salah begitu
+   * penetapan pertama masuk.
+   *
+   * Yang dihitung sengaja "belum bisa dipakai", bukan sekadar "kategorinya
+   * kosong": kategori yang dasarnya masih sementara tidak menyempitkan angka
+   * yang dilihat warga (lihat `sumberMengikat`), jadi menghitungnya sebagai
+   * selesai membuat dasbor mengklaim kemajuan yang tidak sampai ke peta.
+   */
+  let belumBerkategori: number | null = null;
+  if (dishub || wilayahKatar !== null) {
+    let kueri = supabase
+      .from("titik_parkir")
+      .select("kode_titik", { count: "exact", head: true })
+      .eq("nonaktif", false)
+      .or(
+        "kategori_tarif.is.null,sumber_kategori.is.null,sumber_kategori.eq.belum_verif",
+      );
+    if (!dishub) kueri = kueri.eq("wilayah", wilayahKatar);
+
+    const { count, error } = await kueri;
+    if (error) {
+      // null, BUKAN nol. Nol berarti semua titik sudah berkategori — pernyataan
+      // yang justru terbalik dari keadaan sebenarnya, dan kartunya akan terbaca
+      // seolah pekerjaannya sudah selesai.
+      console.error(`[dasbor] gagal menghitung kategori: ${jelaskanGalat(error)}`);
+    } else {
+      belumBerkategori = count ?? 0;
+    }
+  } else {
+    // Katar tanpa wilayah terpetakan: cakupannya memang kosong, sama seperti
+    // `total` di atas yang juga nol.
+    belumBerkategori = 0;
+  }
+
   // Laporan. RLS yang membatasi cakupannya, bukan filter di sini.
   //
   // catatan dan foto_path SENGAJA tidak diambil: keduanya teks bebas dan
@@ -240,6 +282,27 @@ export default async function DasborPage() {
             >
               Verifikasi laporan
             </Link>
+            {/*
+              Hanya Dishub. Tarif berlaku sekota, jadi bukan wewenang Katar —
+              dan halaman tujuannya pun menolak Katar, sama seperti policy di
+              basis data.
+            */}
+            {dishub && (
+              <Link
+                href="/petugas/tarif"
+                className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+              >
+                Tarif rujukan
+              </Link>
+            )}
+            {dishub && (
+              <Link
+                href="/petugas/titik"
+                className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+              >
+                Kategori titik
+              </Link>
+            )}
             <form action={keluar}>
             <button
               type="submit"
@@ -284,8 +347,18 @@ export default async function DasborPage() {
           />
           <Kartu
             label="Kategori tarif belum diketahui"
-            nilai={total.toLocaleString("id-ID")}
-            keterangan="Perda tidak memetakan alamat ke kategori tarif"
+            nilai={
+              belumBerkategori === null
+                ? "—"
+                : belumBerkategori.toLocaleString("id-ID")
+            }
+            keterangan={
+              belumBerkategori === null
+                ? "Angkanya gagal dibaca dari basis data"
+                : belumBerkategori === 0
+                  ? "Semua titik dalam cakupan sudah punya kategori bersumber"
+                  : "Perda tidak memetakan alamat ke kategori; ditetapkan manual di Kategori titik"
+            }
           />
         </div>
 
