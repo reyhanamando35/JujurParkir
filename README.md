@@ -161,19 +161,25 @@ Yang **tidak** termasuk dalam proyek ini: pembayaran parkir, integrasi ke sistem
 
 <div align="center">
 
+<!-- SCREENSHOT: halaman awal "/" pada lebar desktop (±1280px), memperlihatkan dua kartu pilihan "Warga" dan "Petugas" beserta tautan "Cek status laporan dengan kode" -->
 <img src="screenshot/01-halaman-awal.jpeg" alt="Halaman awal dengan dua kartu" width="800"/>
 <p><em>Halaman awal — dua pintu masuk: Warga dan Petugas</em></p>
 
+<!-- SCREENSHOT: /warga pada lebar desktop, peta zoom kota penuh, gugus (cluster) pin menyebar di seluruh Surabaya, kotak pencarian terlihat di atas peta -->
 <img src="screenshot/02-peta-warga.png" alt="Peta warga zoom kota penuh" width="800"/>
 <p><em>Peta warga — 1.235 titik parkir resmi, digugus per area</em></p>
 
+<!-- SCREENSHOT: popup satu titik parkir terbuka pada lebar desktop, memperlihatkan jam jaga, rentang tarif motor dan mobil, keterangan "belum diverifikasi", baris "Sumber: Perda 7/2023", dan jumlah laporan warga -->
 <img src="screenshot/03-popup-titik.png" alt="Popup detail titik parkir" width="800"/>
 <p><em>Popup titik — tarif rujukan, sumber pasal, dan jumlah laporan warga</em></p>
 
-<img src="screenshot/04-dasbor-petugas.png" alt="Dasbor petugas" width="800"/>
-<img src="screenshot/04-dasbor-petugas (1).png" alt="Dasbor petugas" width="800"/>
-<p><em>Dasbor petugas — penyaring, grafik, dan pengubah status laporan</em></p>
+<img src="screenshot/04-dasbor-petugas.png" alt="Dasbor Dishub, bagian kondisi data titik parkir" width="800"/>
+<p><em>Dasbor Dishub (atas) — 1.235 titik dalam cakupan, sebaran wilayah, dan sebaran jam tutup</em></p>
 
+<img src="screenshot/04-dasbor-petugas%20(1).png" alt="Dasbor Dishub, bagian laporan warga" width="800"/>
+<p><em>Dasbor Dishub (bawah) — grafik laporan harian, penyaring, dan pengubah status per baris</em></p>
+
+<!-- SCREENSHOT: /warga/cek/[kode] pada lebar desktop, memperlihatkan status sebuah laporan beserta tindak lanjut petugas -->
 <img src="screenshot/05-cek-status.png" alt="Halaman cek status laporan" width="800"/>
 <p><em>Cek status — pelapor anonim tetap bisa menelusuri laporannya lewat kode</em></p>
 
@@ -181,18 +187,21 @@ Yang **tidak** termasuk dalam proyek ini: pembayaran parkir, integrasi ke sistem
 
 #### Tampilan Ponsel (375 px)
 
+Aplikasi ini dirancang mobile-first: penggunanya adalah orang yang sedang berdiri di pinggir jalan sambil memegang ponsel, bukan duduk di depan layar lebar. Tangkapan layar berikut diambil pada lebar **375 px** (iPhone SE / Android kelas menengah).
+
 <div align="center">
 
+| Warga | | |
+|:--:|:--:|:--:|
 | <img src="screenshot/06-hp-halaman-awal.jpg" alt="Halaman awal di ponsel" width="240"/> | <img src="screenshot/07-hp-peta.jpg" alt="Peta warga di ponsel" width="240"/> | <img src="screenshot/08-hp-pencarian.jpg" alt="Saran pencarian di ponsel" width="240"/> |
-| :---: | :---: | :---: |
-| *Halaman awal* | *Peta + kotak pencarian* | *Saran pencarian per kata* |
+| *Halaman awal — dua kartu tersusun menurun* | *Peta + kotak pencarian selebar layar; atribusi OpenStreetMap tetap terbaca di kiri bawah* | *Saran pencarian per kata, menutupi peta tanpa terpotong di tepi* |
+| <img src="screenshot/09-hp-popup-titik.jpg" alt="Popup titik di ponsel" width="240"/> | <img src="screenshot/10-hp-form-laporan.jpg" alt="Form laporan, bagian jenis keluhan" width="240"/> | <img src="screenshot/10-hp-form-laporan%20(1).jpg" alt="Form laporan, bagian kendaraan dan foto" width="240"/> |
+| *Popup titik — isinya dapat digulir, judul dan tombol tutup tidak terpotong* | *Form laporan (atas) — jenis keluhan dan keterangan* | *Form laporan (bawah) — kendaraan, waktu, foto opsional, lalu kirim* |
 
-<br>
-
-| <img src="screenshot/09-hp-popup-titik.jpg" alt="Popup titik di ponsel" width="240"/> | <img src="screenshot/10-hp-form-laporan.jpg" alt="Form laporan di ponsel" width="240"/> | <img src="screenshot/10-hp-form-laporan (1).jpg" alt="Form laporan di ponsel" width="240"/> |
-| :---: | :---: | :---: |
-| <img src="screenshot/11-hp-dasbor.jpg" alt="Dasbor petugas di ponsel" width="240"/> | <img src="screenshot/11-hp-dasbor (1).jpg" alt="Dasbor petugas di ponsel" width="240"/> | <img src="screenshot/11-hp-dasbor (2).jpg" alt="Dasbor petugas di ponsel" width="240"/> |
-| *Popup titik — isinya dapat digulir* | *Form laporan — tanpa akun* | *Dasbor petugas* |
+| Petugas | | |
+|:--:|:--:|:--:|
+| <img src="screenshot/11-hp-dasbor.jpg" alt="Dasbor petugas di ponsel, bagian atas" width="240"/> | <img src="screenshot/11-hp-dasbor%20(1).jpg" alt="Grafik dasbor sebagai daftar angka di ponsel" width="240"/> | <img src="screenshot/11-hp-dasbor%20(2).jpg" alt="Dasbor petugas di ponsel, bagian laporan warga" width="240"/> |
+| *Dasbor Dishub (atas) — kondisi data titik parkir* | *Grafik berubah jadi daftar angka di layar sempit — bukan grafik yang gagal dirender* | *Laporan warga — grafik harian, penyaring, dan tabel yang dapat digeser mendatar* |
 
 </div>
 
