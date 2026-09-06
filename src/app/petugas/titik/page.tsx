@@ -7,6 +7,7 @@ import { jelaskanGalat } from "@/lib/galat";
 import { createClient } from "@/lib/supabase/server";
 import type { KategoriRef } from "@/lib/tarif";
 
+import { TombolKeluar } from "../tombol-keluar";
 import { KelolaTitik, type BarisTitik } from "./kelola-titik";
 
 export const metadata: Metadata = {
@@ -83,6 +84,13 @@ export default async function TitikPage({
     console.error(`[titik] gagal membaca kategori: ${jelaskanGalat(galatKategori)}`);
   }
 
+  // Tanpa ini, kueri yang gagal jatuh ke `data ?? []` dan halaman merender
+  // tabel kosong — bentuk yang sama persis dengan "tidak ada titik yang cocok
+  // dengan pencarianmu". Dua keadaan yang menuntut tindakan berbeda tidak
+  // boleh tampil sama, apalagi ketika salah satunya berarti 1.235 titik hilang
+  // dari layar.
+  const gagalMuat = Boolean(error || galatKategori);
+
   // Angka ringkas dihitung di basis data — `head: true` berarti tidak ada baris
   // yang ikut terkirim, hanya bilangannya. Jadi jumlah ini menyebut SELURUH
   // titik, bukan hanya 50 yang kebetulan tampil.
@@ -109,30 +117,45 @@ export default async function TitikPage({
   return (
     <main className="flex flex-1 flex-col px-5 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-12">
       <div className="mx-auto w-full max-w-3xl">
-        <Link
-          href="/petugas/dasbor"
-          className="inline-flex items-center gap-1.5 rounded-xl text-sm leading-normal text-ink-muted transition-colors duration-150 ease-out hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            focusable="false"
-            className="size-4 shrink-0"
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href="/petugas/dasbor"
+            className="inline-flex items-center gap-1.5 rounded-xl text-sm leading-normal text-ink-muted transition-colors duration-150 ease-out hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
           >
-            <path d="M19.5 12h-14" />
-            <path d="m11 6.5-5.5 5.5 5.5 5.5" />
-          </svg>
-          Dasbor
-        </Link>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              focusable="false"
+              className="size-4 shrink-0"
+            >
+              <path d="M19.5 12h-14" />
+              <path d="m11 6.5-5.5 5.5 5.5 5.5" />
+            </svg>
+            Dasbor
+          </Link>
+          {/* Konfirmasi dua langkah — lihat alasannya di komponennya. */}
+          <TombolKeluar />
+        </div>
 
         <h1 className="mt-2 text-balance text-2xl font-bold leading-tight tracking-tight text-ink sm:text-3xl">
           Kategori titik parkir
         </h1>
+        {gagalMuat && (
+          <p
+            role="status"
+            className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-sm leading-normal text-ink"
+          >
+            Daftar titik gagal dimuat — tabel di bawah kosong karena kueri-nya
+            ditolak, bukan karena tidak ada titik yang cocok. Alasan lengkapnya
+            tercetak di log server.
+          </p>
+        )}
+
         <p className="mt-2 text-sm leading-normal text-ink-muted">
           {jumlahSudah.toLocaleString("id-ID")} dari{" "}
           {jumlahTotal.toLocaleString("id-ID")} titik sudah ditetapkan

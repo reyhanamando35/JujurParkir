@@ -17,8 +17,14 @@ import {
   type Terkirim,
   type TitikRingkas,
 } from "@/components/lapor-warga";
+import { CariTitik, type TitikCari } from "@/components/cari-titik";
 import { jelaskanGalat } from "@/lib/galat";
-import { pasangPetaDasar, SUMBER_TITIK } from "@/lib/peta-dasar";
+import {
+  pasangPetaDasar,
+  PUSAT_AWAL,
+  SUMBER_TITIK,
+  ZOOM_AWAL,
+} from "@/lib/peta-dasar";
 import { createClient } from "@/lib/supabase/client";
 import {
   LABEL_SUMBER_KATEGORI,
@@ -67,6 +73,9 @@ type FiturTitik = {
 };
 
 type Status = "memuat" | "siap" | "gagal";
+
+/** Perbesaran saat menuju satu titik dari hasil pencarian. */
+const ZOOM_SASARAN = 17;
 
 /**
  * Dua angka yang berbeda arti, dan keduanya perlu.
@@ -418,6 +427,7 @@ export function PetaTarif() {
    */
   const atributRef = useRef<Map<string, AtributTitik>>(new Map());
   /** Gugus dan penandanya disimpan supaya ikonnya bisa disegarkan saat angka laporan tiba. */
+  const [daftarCari, setDaftarCari] = useState<TitikCari[]>([]);
   const gugusRef = useRef<{ refreshClusters: () => void } | null>(null);
   const penandaRef = useRef<Array<{ kode: string; penanda: Marker }>>([]);
   const [agregatVersi, setAgregatVersi] = useState(0);
@@ -810,6 +820,33 @@ export function PetaTarif() {
       petaRef.current = peta;
       setStatus("siap");
 
+      /*
+        Tinggi wadah peta diteruskan ke CSS sebagai --tinggi-peta, dipakai
+        membatasi tinggi isi popup (lihat .leaflet-popup-content di
+        globals.css).
+
+        Kenapa lewat variabel dan bukan angka vh: tinggi peta di /warga TIDAK
+        mengikuti tinggi layar. Ia sisa ruang antara header dan footer, dan
+        di ponsel bisa tinggal sekitar 226px sementara layarnya 812px. Popup
+        yang dibatasi dengan vh tetap akan lebih tinggi daripada petanya, dan
+        popup yang lebih tinggi daripada wadahnya tidak bisa diselamatkan
+        autoPan — bagian atasnya, termasuk tombol tutup, terpotong di luar
+        layar.
+
+        Diperbarui juga saat peta berubah ukuran, supaya layar yang diputar
+        tidak meninggalkan batas lama yang sudah salah.
+      */
+      if (peta) {
+        const petaSiap = peta;
+        const perbaruiTinggi = () => {
+          petaSiap
+            .getContainer()
+            .style.setProperty("--tinggi-peta", `${petaSiap.getSize().y}px`);
+        };
+        perbaruiTinggi();
+        petaSiap.on("resize", perbaruiTinggi);
+      }
+
       // --- Titik parkir --------------------------------------------------
       let data: { features: FiturTitik[] };
       try {
@@ -941,6 +978,18 @@ export function PetaTarif() {
 
       gugus.addTo(peta);
       fiturRef.current = data.features;
+      // Bentuk ringkas untuk kotak pencarian. Disalin ke state — bukan dibaca
+      // dari fiturRef — karena ref tidak memicu render, dan kotak pencarian
+      // harus muncul begitu datanya tiba.
+      setDaftarCari(
+        data.features.map((f) => ({
+          id: f.id,
+          alamat: f.properties.alamat,
+          lokasi: f.properties.lokasi,
+          lat: f.geometry.coordinates[1],
+          lng: f.geometry.coordinates[0],
+        })),
+      );
       setJumlahTitik(data.features.length);
       setStatusTitik("siap");
 
@@ -1044,6 +1093,69 @@ export function PetaTarif() {
     peta.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true });
   }, []);
 
+  /**
+   * Menuju satu titik hasil pencarian, lalu membuka popupnya.
+   *
+   * Popupnya tidak bisa langsung dibuka: penandanya kemungkinan besar masih
+   * berada di dalam gugus, dan penanda yang tergabung ke gugus tidak ada di
+   * peta sebagai lapisan tersendiri — openPopup() padanya tidak menampilkan
+   * apa pun. zoomToShowLayer milik markercluster yang membuka gugusnya dulu
+   * (termasuk spiderfy untuk 16 alamat Baliwerti yang berbagi satu koordinat),
+   * baru popupnya dibuka lewat callback-nya.
+   *
+   * Kalau penandanya memang sudah terlihat sendiri, jalur itu dilewati —
+   * zoomToShowLayer pada penanda yang sudah tampak akan menggeser peta sekali
+   * lagi tanpa alasan.
+   */
+  const pilihHasilCari = useCallback((titik: TitikCari) => {
+    const peta = petaRef.current;
+    if (!peta) return;
+
+    const bukaPopup = () => {
+      const entri = penandaRef.current.find((p) => p.kode === titik.id);
+      if (!entri) return;
+      const gugus = gugusRef.current as unknown as {
+        zoomToShowLayer?: (m: Marker, selesai: () => void) => void;
+        getVisibleParent?: (m: Marker) => unknown;
+      } | null;
+
+      if (
+        !gugus?.zoomToShowLayer ||
+        gugus.getVisibleParent?.(entri.penanda) === entri.penanda
+      ) {
+        entri.penanda.openPopup();
+        return;
+      }
+      gugus.zoomToShowLayer(entri.penanda, () => entri.penanda.openPopup());
+    };
+
+    // Peta yang tidak bergerak tidak memancarkan moveend, dan popupnya akan
+    // menunggu selamanya. Terjadi kalau saran yang sama dipilih dua kali.
+    const pusat = peta.getCenter();
+    if (
+      peta.getZoom() === ZOOM_SASARAN &&
+      Math.abs(pusat.lat - titik.lat) < 1e-9 &&
+      Math.abs(pusat.lng - titik.lng) < 1e-9
+    ) {
+      bukaPopup();
+      return;
+    }
+
+    peta.once("moveend", bukaPopup);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      peta.setView([titik.lat, titik.lng], ZOOM_SASARAN);
+    } else {
+      peta.flyTo([titik.lat, titik.lng], ZOOM_SASARAN);
+    }
+  }, []);
+
+  const kosongkanCari = useCallback(() => {
+    const peta = petaRef.current;
+    if (!peta) return;
+    peta.closePopup();
+    peta.setView([PUSAT_AWAL[0], PUSAT_AWAL[1]], ZOOM_AWAL);
+  }, []);
+
   return (
     <div className="absolute inset-0">
       <div
@@ -1077,12 +1189,43 @@ export function PetaTarif() {
         </p>
       )}
 
+      {/*
+        Kotak pencarian, selalu terlihat begitu titiknya siap.
+
+        Ditempatkan di ATAS, dan itu bukan selera: pojok bawah kanan sudah
+        dipakai atribusi OpenStreetMap, yang merupakan syarat lisensi dan tidak
+        boleh tertutupi. Daftar sarannya pun tumbuh ke bawah dari kotak dengan
+        tinggi maksimum 60vh, jadi pada layar terpendek sekalipun ujungnya
+        masih jauh di atas baris atribusi.
+
+        z-[1000] menyamakan lapisannya dengan kontrol peta lain di komponen
+        ini; Leaflet menempatkan panel kontrolnya sendiri di bawah itu.
+      */}
+      {statusTitik === "siap" && (
+        // bottom-12 menyisakan baris atribusi di dasar peta. Wadahnya diberi
+        // tinggi pasti (top + bottom) supaya daftar saran di dalamnya punya
+        // batas untuk menyusut — lihat komentar di CariTitik.
+        <div className="pointer-events-none absolute inset-x-3 bottom-12 top-3 z-[1000] flex flex-col sm:max-w-sm">
+          <CariTitik
+            daftar={daftarCari}
+            onPilih={pilihHasilCari}
+            onKosongkan={kosongkanCari}
+          />
+        </div>
+      )}
+
       {pesanLokasi && (
         <p
           role="status"
           // Di atas, bukan di bawah: sudut bawah sudah dipakai atribusi dan
           // tombol, dan pesan yang menutupi keduanya terbaca seperti kerusakan.
-          className="absolute inset-x-3 top-3 z-[1000] rounded-xl border border-line bg-surface px-3 py-2 text-sm leading-normal text-ink shadow-sm"
+          //
+          // Digeser turun selagi kotak pencarian ada supaya keduanya tidak
+          // saling menimpa. Saat titik belum siap, kotak itu belum dirender
+          // dan pesan ini kembali ke tepi atas.
+          className={`absolute inset-x-3 z-[1000] rounded-xl border border-line bg-surface px-3 py-2 text-sm leading-normal text-ink shadow-sm ${
+            statusTitik === "siap" ? "top-[4.25rem]" : "top-3"
+          }`}
         >
           {pesanLokasi}
         </p>

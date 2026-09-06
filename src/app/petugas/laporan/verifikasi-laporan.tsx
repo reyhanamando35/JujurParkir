@@ -11,7 +11,12 @@ import {
   type StatusLaporan,
 } from "@/lib/laporan";
 
-import { ubahStatusLaporan, type StatusUbah } from "./actions";
+import {
+  lihatFotoLaporan,
+  ubahStatusLaporan,
+  type StatusFoto,
+  type StatusUbah,
+} from "./actions";
 
 export type BarisVerifikasi = {
   id: number;
@@ -221,8 +226,21 @@ function PanelVerifikasi({
 
   // Panel muncul di bawah daftar yang panjang; tanpa ini petugas mengetuk baris
   // lalu tidak melihat apa-apa berubah di layar.
+  //
+  // behavior ditentukan saat effect berjalan, bukan ditulis mati "smooth".
+  // Seluruh CSS proyek ini sudah patuh pada prefers-reduced-motion lewat
+  // varian motion-reduce:, tapi gerakan yang datang dari JS tidak lewat CSS
+  // sama sekali — ia satu-satunya animasi di aplikasi yang lolos dari
+  // preferensi itu. Bagi yang menyalakannya karena vertigo atau mabuk gerak,
+  // layar yang meluncur sendiri bukan hal sepele.
   useEffect(() => {
-    wadahRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const kurangiGerak = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    wadahRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: kurangiGerak ? "auto" : "smooth",
+    });
   }, []);
 
   const wajibTindakLanjut = pilihan === "selesai" || pilihan === "ditolak";
@@ -286,12 +304,7 @@ function PanelVerifikasi({
         <p className="mt-1 text-pretty text-sm leading-relaxed text-ink">
           {baris.catatan ?? "(tidak diisi)"}
         </p>
-        {baris.adaFoto && (
-          <p className="mt-2 text-sm leading-normal text-ink-muted">
-            Laporan ini menyertakan foto. Tampilan foto belum tersedia di
-            halaman ini.
-          </p>
-        )}
+        {baris.adaFoto && <FotoLaporan id={baris.id} />}
       </div>
 
       <form action={formAction} className="mt-4 flex flex-col gap-4">
@@ -394,5 +407,58 @@ function PanelVerifikasi({
         </button>
       </form>
     </div>
+  );
+}
+
+/**
+ * Foto laporan, dibuka hanya kalau diminta.
+ *
+ * Fotonya TIDAK ikut termuat bersama halaman. Alasannya bukan performa:
+ * memuat otomatis berarti setiap petugas yang kebetulan membuka sebuah laporan
+ * ikut melihat wajah orang yang lewat di belakang jukir, tanpa pernah memilih
+ * untuk melihatnya. Satu ketukan sadar adalah bentuk paling murah dari
+ * "seperlunya saja".
+ *
+ * Tautannya berlaku 60 detik (lihat lihatFotoLaporan). Sesudah itu gambar yang
+ * sudah tampil tetap di layar sampai panelnya ditutup, tapi tautannya tidak
+ * bisa dipakai ulang oleh siapa pun yang menyalinnya.
+ */
+function FotoLaporan({ id }: { id: number }) {
+  const [status, aksi, memuat] = useActionState(lihatFotoLaporan, {
+    url: null,
+    pesan: null,
+  } as StatusFoto);
+
+  if (status.url) {
+    return (
+      <figure className="mt-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={status.url}
+          alt="Foto yang dilampirkan pelapor"
+          className="w-full rounded-xl border border-line"
+        />
+        <figcaption className="mt-1 text-sm leading-normal text-ink-muted">
+          Dikirim warga tanpa diverifikasi. Tautannya berlaku sebentar dan tidak
+          bisa dibagikan.
+        </figcaption>
+      </figure>
+    );
+  }
+
+  return (
+    <form action={aksi} className="mt-2">
+      <input type="hidden" name="id" value={id} />
+      <button
+        type="submit"
+        disabled={memuat}
+        className="inline-flex min-h-11 items-center rounded-xl border border-line bg-surface px-3 text-sm font-medium leading-normal text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-70 motion-reduce:transition-none"
+      >
+        {memuat ? "Membuka…" : "Lihat foto"}
+      </button>
+      <p role="alert" aria-live="polite" className="mt-1 min-h-5 text-sm leading-normal text-ink">
+        {status.pesan}
+      </p>
+    </form>
   );
 }
