@@ -249,6 +249,20 @@ export function LaporWarga({
           . Kode ini tidak terhubung ke nama, nomor, atau akun siapa pun.
         </p>
 
+        {/*
+          Sisa kuota datang dari jawaban server, bukan dihitung di sini.
+          Angka ini murni keterangan — yang memutuskan boleh atau tidaknya
+          kiriman berikutnya tetap server, tiap kali, tanpa melihat apa pun
+          yang tersimpan di peramban.
+        */}
+        {typeof status.sisa === "number" && (
+          <p className="mt-2 text-pretty text-sm leading-normal text-ink-muted">
+            {status.sisa > 0
+              ? `Kamu masih bisa mengirim ${status.sisa} laporan lagi hari ini.`
+              : "Ini laporan terakhirmu untuk hari ini. Hitungannya dimulai lagi tengah malam WIB."}
+          </p>
+        )}
+
         <a
           href={`/warga/cek/${status.kode}`}
           className="mt-4 block w-full rounded-xl bg-accent px-4 py-2.5 text-center text-base font-semibold text-accent-ink hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"

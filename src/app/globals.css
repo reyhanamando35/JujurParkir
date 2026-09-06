@@ -242,6 +242,28 @@ body {
 .leaflet-popup-content {
   margin: 12px 14px;
   line-height: 1.5;
+
+  /*
+    Isi popup digulir di dalam dirinya sendiri, bukan tumbuh melewati peta.
+
+    Titik parkir yang lengkap menampilkan jam jaga, tarif motor, tarif mobil,
+    keterangan verifikasi, sumber Perda, dan jumlah laporan warga. Di ponsel
+    itu lebih tinggi daripada petanya, dan popup yang lebih tinggi daripada
+    wadahnya tidak bisa dimuat autoPan: yang terpotong justru bagian atasnya —
+    alamat titiknya dan tombol tutup.
+
+    --tinggi-peta dipasang dari JS (lihat peta-tarif.tsx) karena tinggi peta
+    tidak mengikuti tinggi layar; ia sisa ruang antara header dan footer.
+    Angka 0.7 menyisakan sekitar 50px untuk ekor popup, bingkai, dan
+    autoPanPadding — cukup supaya seluruh popup muat di dalam peta, tanpa
+    menyisakan ruang kosong yang tidak perlu. Nilai cadangan 420px dipakai
+    kalau variabelnya belum sempat terpasang, jadi popup tidak pernah sama
+    sekali tanpa batas.
+  */
+  max-height: calc(var(--tinggi-peta, 420px) * 0.7);
+  overflow-y: auto;
+  /* Gulir yang mentok tidak diteruskan ke peta di belakangnya. */
+  overscroll-behavior: contain;
 }
 
 .leaflet-popup-tip {

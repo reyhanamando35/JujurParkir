@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { getPetugas } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
+import { TombolKeluar } from "../tombol-keluar";
 import { VerifikasiLaporan, type BarisVerifikasi } from "./verifikasi-laporan";
 
 export const metadata: Metadata = {
@@ -138,12 +139,16 @@ export default async function LaporanPage() {
             </p>
           </div>
 
-          <Link
-            href="/petugas/dasbor"
-            className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
-          >
-            Ke dasbor
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/petugas/dasbor"
+              className="rounded-xl border border-line bg-surface px-3 py-2 text-sm font-medium leading-normal text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+            >
+              Ke dasbor
+            </Link>
+            {/* Konfirmasi dua langkah — lihat alasannya di komponennya. */}
+            <TombolKeluar />
+          </div>
         </div>
 
         {gagalMuat && (

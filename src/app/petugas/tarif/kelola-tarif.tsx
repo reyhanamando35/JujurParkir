@@ -31,6 +31,17 @@ const kelasTombolUtama =
 const kelasTombolKedua =
   "rounded-xl border border-line bg-surface px-4 py-2.5 text-base font-medium leading-normal text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none";
 
+/**
+ * Tombol aksi di dalam baris tabel.
+ *
+ * min-h-11 (44px) bukan hiasan: ini kolom paling kanan di tabel yang di
+ * ponsel harus digeser dulu untuk dilihat, dan dua tombolnya bersebelahan —
+ * salah satunya menghapus data. Tanpa tinggi minimum, tingginya hanya ikut
+ * py-2 sel (sekitar 36px) dan lebarnya hanya selebar katanya sendiri.
+ */
+const kelasAksi =
+  "inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-medium underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
 function nominal(nilai: number | null): string {
   // null berarti Perda tidak menetapkannya — berbeda dari nol, yang berarti
   // gratis. Ditulis berbeda supaya tidak tertukar saat dibaca sekilas.
@@ -40,13 +51,30 @@ function nominal(nilai: number | null): string {
 export function KelolaTarif({
   baris,
   kategori,
+  gagalMuat = false,
 }: {
   baris: BarisTarif[];
   kategori: KategoriRef[];
+  /** Kueri di server gagal. Larik kosong di atas berarti "tidak diketahui". */
+  gagalMuat?: boolean;
 }) {
   const [formulir, setFormulir] = useState<Formulir>(null);
   const [status, simpanAction, menyimpan] = useActionState(simpanTarif, awal);
   const [statusHapus, hapusAction] = useActionState(hapusTarif, awal);
+
+  /**
+   * id baris yang sedang menunggu konfirmasi hapus, atau null.
+   *
+   * Pola yang sama dengan TombolKeluar, dan karena alasan yang sama: "Batal"
+   * menempati posisi tombol "Hapus" semula dan "Ya, hapus" digeser ke
+   * sebelahnya, jadi ketukan kedua yang tidak sengaja mengenai Batal.
+   *
+   * Yang dihapus di sini bukan catatan internal — begitu satu baris tarif
+   * hilang, peta warga berhenti menampilkan angka untuk setiap titik yang
+   * memakai kategori itu dan kembali ke rentang. Satu ketukan meleset di
+   * kolom paling kanan tabel tidak boleh cukup untuk melakukannya.
+   */
+  const [hapusKe, setHapusKe] = useState<number | null>(null);
 
   const namaKategori = new Map(kategori.map((k) => [k.kode, k.nama]));
   const sedangUbah = formulir !== null && formulir !== "baru";
@@ -76,12 +104,21 @@ export function KelolaTarif({
 
       {baris.length === 0 ? (
         <div className="mt-3 rounded-2xl border border-line bg-surface px-4 py-10 text-center">
+          {/*
+            Dua keadaan yang tampak sama dari sini tapi artinya berlawanan:
+            tabelnya memang kosong, atau kueri-nya gagal sehingga isinya tidak
+            diketahui. Menuliskan keduanya sebagai "Belum ada tarif" membuat
+            petugas menambah baris yang sebenarnya sudah ada.
+          */}
           <p className="text-base font-semibold leading-tight text-ink">
-            Belum ada tarif yang ditetapkan
+            {gagalMuat
+              ? "Isi tabel tarif tidak diketahui"
+              : "Belum ada tarif yang ditetapkan"}
           </p>
           <p className="mx-auto mt-1 max-w-[46ch] text-pretty text-sm leading-normal text-ink-muted">
-            Selama kosong, peta warga tidak menampilkan angka tarif apa pun —
-            hanya keterangan bahwa tarif resminya belum diverifikasi.
+            {gagalMuat
+              ? "Jangan menambah baris sebelum daftarnya berhasil dimuat — yang lama bisa saja masih ada."
+              : "Selama kosong, peta warga tidak menampilkan angka tarif apa pun — hanya keterangan bahwa tarif resminya belum diverifikasi."}
           </p>
         </div>
       ) : (
@@ -123,22 +160,71 @@ export function KelolaTarif({
                     </td>
                     <td className="px-4 py-2 text-ink-muted">{b.sumber}</td>
                     <td className="whitespace-nowrap px-4 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setFormulir(b)}
-                        className="rounded-lg text-sm font-medium text-ink underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                      >
-                        Ubah
-                      </button>
-                      <form action={hapusAction} className="ml-3 inline">
-                        <input type="hidden" name="id" value={b.id} />
-                        <button
-                          type="submit"
-                          className="rounded-lg text-sm font-medium text-ink-muted underline underline-offset-4 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      {hapusKe === b.id ? (
+                        <span
+                          role="group"
+                          aria-label={`Konfirmasi hapus tarif ${
+                            namaKategori.get(b.kategori) ?? b.kategori
+                          } ${b.jenis_kendaraan}`}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") setHapusKe(null);
+                          }}
+                          className="inline-flex items-center gap-2"
                         >
-                          Hapus
-                        </button>
-                      </form>
+                          <span className="text-sm leading-normal text-ink">
+                            Hapus baris ini?
+                          </span>
+                          <button
+                            type="button"
+                            autoFocus
+                            onClick={() => setHapusKe(null)}
+                            className={`${kelasAksi} text-ink`}
+                          >
+                            Batal
+                          </button>
+                          <form action={hapusAction} className="inline">
+                            <input type="hidden" name="id" value={b.id} />
+                            {/*
+                              JANGAN tambahkan onClick yang menutup konfirmasi
+                              di sini. setState pada klik tombol submit ini
+                              membuang <form>-nya dari DOM saat React
+                              menyiram pembaruan — dan itu terjadi sebelum
+                              peramban sempat menjalankan aksi bawaan klik,
+                              sehingga event submit tidak pernah terjadi dan
+                              Server Action tidak pernah dipanggil. Tombolnya
+                              terlihat bekerja, tapi tidak ada yang terhapus.
+
+                              Konfirmasinya tidak perlu ditutup manual:
+                              revalidatePath membuang barisnya, dan sel ini
+                              ikut hilang bersamanya. Kalau gagal, konfirmasi
+                              memang sebaiknya tetap terbuka.
+                            */}
+                            <button
+                              type="submit"
+                              className="inline-flex min-h-11 items-center rounded-lg border border-accent bg-accent px-3 text-sm font-semibold text-accent-ink hover:bg-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                            >
+                              Ya, hapus
+                            </button>
+                          </form>
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setFormulir(b)}
+                            className={`${kelasAksi} text-ink`}
+                          >
+                            Ubah
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setHapusKe(b.id)}
+                            className={`${kelasAksi} ml-1 text-ink-muted`}
+                          >
+                            Hapus
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}

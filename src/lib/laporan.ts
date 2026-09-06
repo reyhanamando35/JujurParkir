@@ -20,12 +20,18 @@ export function adalahStatus(nilai: string): nilai is StatusLaporan {
   return (STATUS_LAPORAN as readonly string[]).includes(nilai);
 }
 
-/** Label untuk petugas — kalimat kerja, dilihat dari sisi yang menindaklanjuti. */
+/**
+ * Label untuk petugas — kalimat kerja, dilihat dari sisi yang menindaklanjuti.
+ *
+ * Kosakata basis datanya (baru/proses/selesai/ditolak) sengaja TIDAK diubah:
+ * ia sudah dipakai CHECK constraint di 0001, grant kolom di 0006, dan baris
+ * yang sudah tersimpan. Yang berubah hanya kata yang dibaca petugas.
+ */
 export const LABEL_STATUS: Record<StatusLaporan, string> = {
   baru: "Baru",
-  proses: "Sedang diproses",
-  selesai: "Selesai ditangani",
-  ditolak: "Tidak terbukti",
+  proses: "Sedang ditinjau",
+  selesai: "Terverifikasi",
+  ditolak: "Ditolak",
 };
 
 /**
