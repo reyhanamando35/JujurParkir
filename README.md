@@ -187,16 +187,14 @@ Yang **tidak** termasuk dalam proyek ini: pembayaran parkir, integrasi ke sistem
 
 #### Tampilan Ponsel (375 px)
 
-Aplikasi ini dirancang mobile-first: penggunanya adalah orang yang sedang berdiri di pinggir jalan sambil memegang ponsel, bukan duduk di depan layar lebar. Tangkapan layar berikut diambil pada lebar **375 px** (iPhone SE / Android kelas menengah).
-
 <div align="center">
 
 | Warga | | |
 |:--:|:--:|:--:|
 | <img src="screenshot/06-hp-halaman-awal.jpg" alt="Halaman awal di ponsel" width="240"/> | <img src="screenshot/07-hp-peta.jpg" alt="Peta warga di ponsel" width="240"/> | <img src="screenshot/08-hp-pencarian.jpg" alt="Saran pencarian di ponsel" width="240"/> |
-| *Halaman awal — dua kartu tersusun menurun* | *Peta + kotak pencarian selebar layar; atribusi OpenStreetMap tetap terbaca di kiri bawah* | *Saran pencarian per kata, menutupi peta tanpa terpotong di tepi* |
+| *Halaman awal, dua kartu tersusun menurun* | *Peta + kotak pencarian selebar layar. Atribusi OpenStreetMap tetap terbaca di kiri bawah* | *Saran pencarian per kata, menutupi peta tanpa terpotong di tepi* |
 | <img src="screenshot/09-hp-popup-titik.jpg" alt="Popup titik di ponsel" width="240"/> | <img src="screenshot/10-hp-form-laporan.jpg" alt="Form laporan, bagian jenis keluhan" width="240"/> | <img src="screenshot/10-hp-form-laporan%20(1).jpg" alt="Form laporan, bagian kendaraan dan foto" width="240"/> |
-| *Popup titik — isinya dapat digulir, judul dan tombol tutup tidak terpotong* | *Form laporan (atas) — jenis keluhan dan keterangan* | *Form laporan (bawah) — kendaraan, waktu, foto opsional, lalu kirim* |
+| *Popup titik, isinya dapat digulir, judul dan tombol tutup tidak terpotong* | *Form laporan (atas), jenis keluhan dan keterangan* | *Form laporan (bawah), kendaraan, waktu, foto opsional, lalu kirim* |
 
 | Petugas | | |
 |:--:|:--:|:--:|
