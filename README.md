@@ -4,13 +4,13 @@
 
 ### Tarif parkir resmi Surabaya, terbaca sebelum uangnya berpindah
 
-[![Live Demo](https://img.shields.io/badge/_Live_Demo-Visit_Site-success?style=for-the-badge)](https://[ISI:URL_Vercel])
+[![Live Demo](https://img.shields.io/badge/_Live_Demo-Visit_Site-success?style=for-the-badge)](https://jujur-parkir.vercel.app/)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github)](https://github.com/reyhanamando35/JujurParkir)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 **Submission for ITECHNO CUP 2026 - Web Development**
 
-**By [ISI: Nama Tim]**
+**By KELOMPOK KONTRAK**
 
 </div>
 
@@ -38,14 +38,11 @@
 
 ## 👥 Tim Developer
 
-| Nama | Peran | Pembagian Tugas | GitHub |
-|------|-------|-----------------|--------|
-| **[ISI: Nama Lengkap 1]** | [ISI: peran] | [ISI: bagian yang dikerjakan] | [GitHub](https://github.com/[ISI:username1]) |
-| **[ISI: Nama Lengkap 2]** | [ISI: peran] | [ISI: bagian yang dikerjakan] | [GitHub](https://github.com/[ISI:username2]) |
-| **[ISI: Nama Lengkap 3]** | [ISI: peran] | [ISI: bagian yang dikerjakan] | [GitHub](https://github.com/[ISI:username3]) |
-| **[ISI: Nama Lengkap 4]** | [ISI: peran] | [ISI: bagian yang dikerjakan] | [GitHub](https://github.com/[ISI:username4]) |
-
-> **Catatan pengisian:** seluruh baris di atas masih placeholder dan **wajib diganti** sebelum pengumpulan. Kolom "Pembagian Tugas" diisi ringkas, misalnya "pipeline data & geocoding", "peta dan pencarian", "alur laporan warga", "dasbor petugas & RLS".
+| Nama | Peran | GitHub |
+|------|-------|--------|
+| **Reyhan Amando Matakupan** | Features & Tech Lead | [GitHub](https://github.com/reyhanamando35) |
+| **Marcel Hans Sasongko** | Data Scraping | [GitHub](https://github.com/marcelhanss) |
+| **Joseph Evan Tanujaya** | Database & QA | [GitHub](https://github.com/joseph-beginner-programmer) |
 
 ---
 
@@ -156,47 +153,63 @@ Yang **tidak** termasuk dalam proyek ini: pembayaran parkir, integrasi ke sistem
 
 ### Live Demo
 
-**[Kunjungi Website](https://[ISI:URL_Vercel])**
+**[Kunjungi Website](https://jujur-parkir.vercel.app/)**
 
 > Ganti tautan di atas dan badge Live Demo di bagian paling atas README dengan URL Vercel yang sebenarnya setelah deploy.
 
 ### Screenshot Aplikasi
 
+#### Tampilan Desktop
+
 <div align="center">
 
-<!-- SCREENSHOT: halaman awal "/" pada lebar desktop, memperlihatkan dua kartu pilihan "Warga" dan "Petugas" beserta tautan "Cek status laporan dengan kode" -->
-<img src="[ISI:URL_SCREENSHOT_1]" alt="Halaman awal dengan dua kartu" width="800"/>
+<!-- SCREENSHOT: halaman awal "/" pada lebar desktop (±1280px), memperlihatkan dua kartu pilihan "Warga" dan "Petugas" beserta tautan "Cek status laporan dengan kode" -->
+<img src="screenshot/01-halaman-awal.png" alt="Halaman awal dengan dua kartu" width="800"/>
 <p><em>Halaman awal — dua pintu masuk: Warga dan Petugas</em></p>
 
-<!-- SCREENSHOT: halaman /warga, peta pada zoom kota penuh, gugus (cluster) pin terlihat menyebar di seluruh Surabaya, kotak pencarian terlihat di atas peta -->
-<img src="[ISI:URL_SCREENSHOT_2]" alt="Peta warga zoom kota penuh" width="800"/>
+<!-- SCREENSHOT: /warga pada lebar desktop, peta zoom kota penuh, gugus (cluster) pin menyebar di seluruh Surabaya, kotak pencarian terlihat di atas peta -->
+<img src="screenshot/02-peta-warga.png" alt="Peta warga zoom kota penuh" width="800"/>
 <p><em>Peta warga — 1.235 titik parkir resmi, digugus per area</em></p>
 
-<!-- SCREENSHOT: popup satu titik parkir terbuka, memperlihatkan jam jaga, rentang tarif motor dan mobil, keterangan "belum diverifikasi", baris "Sumber: Perda 7/2023", dan jumlah laporan warga -->
-<img src="[ISI:URL_SCREENSHOT_3]" alt="Popup detail titik parkir" width="800"/>
+<!-- SCREENSHOT: popup satu titik parkir terbuka pada lebar desktop, memperlihatkan jam jaga, rentang tarif motor dan mobil, keterangan "belum diverifikasi", baris "Sumber: Perda 7/2023", dan jumlah laporan warga -->
+<img src="screenshot/03-popup-titik.png" alt="Popup detail titik parkir" width="800"/>
 <p><em>Popup titik — tarif rujukan, sumber pasal, dan jumlah laporan warga</em></p>
 
-<!-- SCREENSHOT: form laporan warga pada lebar 375px (mode perangkat mobile), memperlihatkan pilihan jenis keluhan dan kolom keterangan -->
-<img src="[ISI:URL_SCREENSHOT_4]" alt="Form laporan warga di layar ponsel" width="400"/>
-<p><em>Form laporan — tanpa akun, tanpa nama, tanpa nomor telepon</em></p>
-
-<!-- SCREENSHOT: /petugas/dasbor setelah login, memperlihatkan grafik laporan harian, penyaring "Semua / Titik terdaftar / Di luar daftar / Sudah diverifikasi", dan tabel laporan -->
-<img src="[ISI:URL_SCREENSHOT_5]" alt="Dasbor petugas" width="800"/>
+<!-- SCREENSHOT: /petugas/dasbor setelah login pada lebar desktop, memperlihatkan grafik laporan harian, penyaring "Semua / Titik terdaftar / Di luar daftar / Sudah diverifikasi", dan tabel laporan -->
+<img src="screenshot/04-dasbor-petugas.png" alt="Dasbor petugas" width="800"/>
 <p><em>Dasbor petugas — penyaring, grafik, dan pengubah status laporan</em></p>
 
-<!-- SCREENSHOT: /warga/cek/[kode] memperlihatkan status sebuah laporan beserta tindak lanjut petugas -->
-<img src="[ISI:URL_SCREENSHOT_6]" alt="Halaman cek status laporan" width="800"/>
+<!-- SCREENSHOT: /warga/cek/[kode] pada lebar desktop, memperlihatkan status sebuah laporan beserta tindak lanjut petugas -->
+<img src="screenshot/05-cek-status.png" alt="Halaman cek status laporan" width="800"/>
 <p><em>Cek status — pelapor anonim tetap bisa menelusuri laporannya lewat kode</em></p>
 
 </div>
 
-> ⚠️ **Peringatan saat mengambil screenshot.** Jangan pernah menyertakan tangkapan layar dashboard Dishub yang memuat data pribadi juru parkir (nama, NIK, alamat rumah, nomor telepon). Screenshot yang diizinkan hanya antarmuka aplikasi ini. Bila sebuah laporan uji memuat catatan atau foto yang bisa mengidentifikasi seseorang, ganti dulu isinya sebelum difoto.
+#### Tampilan Ponsel (375 px)
 
-### Video Demo
+Aplikasi ini dirancang mobile-first: penggunanya adalah orang yang sedang berdiri di pinggir jalan sambil memegang ponsel, bukan duduk di depan layar lebar. Tangkapan layar berikut diambil pada lebar **375 px** (iPhone SE / Android kelas menengah).
 
-**[ISI: Link Video Demo]** _(opsional)_
+<div align="center">
 
----
+<!-- SCREENSHOT HP: halaman awal "/" pada lebar 375px, dua kartu tersusun menurun, tidak ada scroll horizontal -->
+<!-- SCREENSHOT HP: /warga pada lebar 375px, kotak pencarian selebar layar di atas peta, atribusi OpenStreetMap terlihat utuh di kiri bawah -->
+<!-- SCREENSHOT HP: /warga pada lebar 375px dengan daftar saran pencarian terbuka (ketik "baliwerti"), memperlihatkan saran menutupi peta dan tidak terpotong di tepi -->
+
+| <img src="screenshot/06-hp-halaman-awal.png" alt="Halaman awal di ponsel" width="240"/> | <img src="screenshot/07-hp-peta.png" alt="Peta warga di ponsel" width="240"/> | <img src="screenshot/08-hp-pencarian.png" alt="Saran pencarian di ponsel" width="240"/> |
+|:--:|:--:|:--:|
+| *Halaman awal* | *Peta + kotak pencarian* | *Saran pencarian per kata* |
+
+<!-- SCREENSHOT HP: popup titik parkir terbuka pada lebar 375px — perlihatkan bahwa isi popup dapat digulir dan judul serta tombol tutupnya tidak terpotong -->
+<!-- SCREENSHOT HP: form laporan warga pada lebar 375px, memperlihatkan pilihan jenis keluhan dan kolom keterangan -->
+<!-- SCREENSHOT HP: /petugas/dasbor pada lebar 375px, memperlihatkan tabel laporan yang dapat digeser mendatar di dalam wadahnya sendiri -->
+
+| <img src="screenshot/09-hp-popup-titik.png" alt="Popup titik di ponsel" width="240"/> | <img src="screenshot/10-hp-form-laporan.png" alt="Form laporan di ponsel" width="240"/> | <img src="screenshot/11-hp-dasbor.png" alt="Dasbor petugas di ponsel" width="240"/> |
+|:--:|:--:|:--:|
+| *Popup titik — isinya dapat digulir* | *Form laporan — tanpa akun* | *Dasbor petugas* |
+
+</div>
+
+> Cara mengambilnya: buka DevTools → **Toggle device toolbar** → pilih **iPhone SE (375 × 667)**, lalu tangkap layar. Ini ukuran tersempit yang kami uji, sehingga apa pun yang rapi di sini akan rapi juga di ponsel yang lebih lebar.
 
 ## 🛠️ Teknologi
 
@@ -235,7 +248,7 @@ Middleware  : src/proxy.ts (nama middleware di Next.js 16)
 
 ```
 Deployment  : Vercel
-CI/CD       : [ISI: GitHub Actions / Vercel — sesuaikan dengan yang dipakai]
+CI/CD       : https://jujur-parkir.vercel.app/
 Testing     : Belum ada automated test — lihat bagian Testing
 Monitoring  : Belum ada
 Linting     : ESLint 9 + eslint-config-next 16.3.3
@@ -706,7 +719,7 @@ Proyek ini **tidak mengekspos REST API publik**. Seluruh operasi tulis berjalan 
 
 ```
 Development : http://localhost:3000
-Production  : https://[ISI:URL_Vercel]
+Production  : https://jujur-parkir.vercel.app/
 ```
 
 ### Route Handler
