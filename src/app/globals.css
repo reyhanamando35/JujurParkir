@@ -376,3 +376,9 @@ body {
   color: var(--accent-ink);
 }
 
+/* Baris tarif per jam di popup. Dibuat sekunder supaya tidak tertukar dengan
+   tarif sekali bayar di atasnya — dua besaran yang berbeda jenisnya. */
+.popup-titik__perjam {
+  color: var(--ink-muted);
+}
+

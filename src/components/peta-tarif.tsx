@@ -17,9 +17,18 @@ import {
   type Terkirim,
   type TitikRingkas,
 } from "@/components/lapor-warga";
+import { jelaskanGalat } from "@/lib/galat";
 import { pasangPetaDasar, SUMBER_TITIK } from "@/lib/peta-dasar";
 import { createClient } from "@/lib/supabase/client";
-import { NAMA_KENDARAAN, SUMBER_TARIF, teksRentang } from "@/lib/tarif";
+import {
+  LABEL_SUMBER_KATEGORI,
+  NAMA_KENDARAAN,
+  ringkasTarif,
+  sumberMengikat,
+  sumberTarif,
+  teksRentang,
+  type BarisTarif,
+} from "@/lib/tarif";
 import { turunkanWilayah, WILAYAH } from "@/lib/wilayah-titik";
 
 /**
@@ -59,6 +68,33 @@ type FiturTitik = {
 
 type Status = "memuat" | "siap" | "gagal";
 
+/**
+ * Dua angka yang berbeda arti, dan keduanya perlu.
+ *
+ * terbuka — laporan yang masih menunggu ditindaklanjuti. Ini yang jadi angka
+ *           di lingkaran peta: begitu petugas menandainya selesai, titiknya
+ *           bersih lagi.
+ * total   — seluruh laporan 30 hari terakhir kecuali yang tidak terbukti.
+ *           Dipakai popup, supaya titik yang dilaporkan berulang lalu
+ *           diselesaikan berulang tidak terlihat sebersih titik yang memang
+ *           tidak pernah dilaporkan.
+ */
+type AngkaLaporan = { terbuka: number; total: number };
+
+/**
+ * Yang sudah ditetapkan Dishub untuk satu titik — baris `titik_parkir`.
+ *
+ * Hanya titik yang SUDAH punya penetapan yang diambil dari basis data. Titik
+ * yang tidak ada di sana tidak diberi nilai bawaan apa pun: `atribut` untuknya
+ * tetap null, dan popupnya tetap menampilkan rentang. Diam bukan berarti
+ * "non-zona".
+ */
+type AtributTitik = {
+  kategori: string | null;
+  progresif: boolean | null;
+  sumber_kategori: string | null;
+};
+
 const kelasTombol = [
   "flex size-11 items-center justify-center rounded-xl border border-line",
   "bg-surface text-ink shadow-sm transition-colors duration-150 ease-out",
@@ -96,7 +132,9 @@ function tulisJam(sifat: SifatTitik): string {
 function isiPopup(
   sifat: SifatTitik,
   kode: string,
-  jumlahLaporan: number | null,
+  angka: AngkaLaporan | null,
+  tarif: BarisTarif[] | null,
+  atribut: AtributTitik | null,
 ): string {
   const catatanPresisi =
     sifat.presisi === "jalan"
@@ -112,29 +150,167 @@ function isiPopup(
   // Kategori tarif tiap titik memang belum diketahui, jadi satu angka tunggal
   // akan terbaca sebagai "tarif resmi di sini" — persis klaim yang tidak bisa
   // kita pertanggungjawabkan.
-  // Tiga keadaan yang berbeda, dan ketiganya harus dibedakan:
   //
-  //   null — angkanya belum termuat (jaringan lambat/mati). BUKAN nol, jadi
-  //          tidak boleh ditampilkan sebagai nol dan tidak boleh disembunyikan:
-  //          diam berarti "tidak ada laporan", dan itu klaim yang belum tentu
-  //          benar.
-  //   0    — sudah termuat dan memang belum ada laporan. Barisnya dihilangkan
-  //          sama sekali; menulis "0 laporan" di 1.235 titik hanya menenggelamkan
-  //          titik yang benar-benar punya laporan.
-  //   >0   — angkanya disebut, dan kalimat "belum diverifikasi" WAJIB ikut:
-  //          laporan warga adalah keterangan sepihak, dan angka telanjang di
-  //          sebelah sebuah titik akan terbaca sebagai vonis untuk jukir yang
-  //          menjaganya.
-  const baris =
-    jumlahLaporan === null
-      ? `<p class="popup-titik__laporan">Jumlah laporan belum termuat.</p>`
-      : jumlahLaporan === 0
-        ? ""
-        : `<p class="popup-titik__laporan"><strong>${jumlahLaporan} laporan warga</strong> dalam 30 hari terakhir, belum diverifikasi petugas.</p>`;
+  // Angkanya datang dari tabel `tarif` di basis data. Kalau tabelnya masih
+  // kosong, TIDAK ada angka yang ditampilkan sama sekali — dulu di sini ada
+  // konstanta contoh, dan konstanta semacam itu selalu berakhir terbaca
+  // sebagai tarif resmi.
+  /**
+   * Seberapa sempit angka ini boleh dinyatakan, dan itu bergantung pada apa
+   * yang benar-benar sudah ditetapkan untuk TITIK INI di `titik_parkir`.
+   *
+   * Kategori hanya ikut menyempitkan kalau sumbernya mengikat. Kategori yang
+   * masih 'belum_verif' tetap tersimpan dan tetap terlihat petugas, tapi di
+   * sini diperlakukan sama dengan belum ada — angka tunggal di sebelah sebuah
+   * alamat terbaca sebagai "segini tarif resmi di sini", dan itu hanya boleh
+   * dikatakan kalau memang ada yang menetapkannya.
+   */
+  const kategoriDipakai =
+    atribut && sumberMengikat(atribut.sumber_kategori)
+      ? atribut.kategori
+      : null;
+  const modeDipakai = atribut?.progresif ?? null;
+  const sifatTarif = { kategori: kategoriDipakai, progresif: modeDipakai };
 
-  const sumber = SUMBER_TARIF.resmi
-    ? `<p class="popup-titik__sumber">Sumber: ${lolos(SUMBER_TARIF.rujukan)}</p>`
-    : `<p class="popup-titik__contoh">Angka contoh, belum diisi dari Perda 7/2023 — jangan dipakai sebagai rujukan resmi.</p>`;
+  /**
+   * Sekali bayar dan per jam tidak pernah dilebur jadi satu rentang: "Rp1.000
+   * per jam" dan "Rp3.000 sekali bayar" beda jenis besarannya, dan rentang
+   * gabungannya tidak berarti apa-apa bagi orang yang sedang ditagih.
+   *
+   * Selama `progresif` titik ini masih null, keduanya disebut sebagai
+   * ALTERNATIF — bukan dua biaya yang berlaku bersamaan. Sebuah titik menagih
+   * salah satunya saja, dan kata "atau ... bila progresif" itulah yang menahan
+   * kalimatnya supaya tidak terbaca seolah menagih dua-duanya.
+   *
+   * Begitu `progresif` diisi, hedge-nya justru harus HILANG: yang tersisa satu
+   * cara membayar, dan menggantungnya lagi dengan "bila" membuat penetapan yang
+   * sudah ada terdengar masih ragu.
+   */
+  const tulisTarif = (kendaraan: "motor" | "mobil"): string | null => {
+    if (!tarif) return null;
+    const r = ringkasTarif(tarif, kendaraan, sifatTarif);
+    if (!r.sekaliBayar && !r.perJam) return null;
+
+    if (modeDipakai === true) {
+      return r.perJam ? `${teksRentang(r.perJam)} per jam` : null;
+    }
+    if (modeDipakai === false) {
+      return r.sekaliBayar ? `${teksRentang(r.sekaliBayar)} sekali bayar` : null;
+    }
+
+    const bagian: string[] = [];
+    if (r.sekaliBayar) {
+      // Label "sekali bayar" hanya ditambahkan kalau ada tarif per jam juga —
+      // tanpa pembanding, labelnya cuma memanjangkan baris tanpa memperjelas.
+      bagian.push(
+        r.perJam
+          ? `${teksRentang(r.sekaliBayar)} sekali bayar`
+          : teksRentang(r.sekaliBayar),
+      );
+    }
+    if (r.perJam) {
+      bagian.push(
+        `<span class="popup-titik__perjam">atau ${teksRentang(r.perJam)} per jam bila progresif</span>`,
+      );
+    }
+    return bagian.join("<br>");
+  };
+
+  const tarifMotor = tulisTarif("motor");
+  const tarifMobil = tulisTarif("mobil");
+  const adaTarif = tarifMotor !== null || tarifMobil !== null;
+
+  const rincianTarif = adaTarif
+    ? `
+        <dt>${NAMA_KENDARAAN.motor}</dt>
+        <dd>${tarifMotor ?? "Belum ditetapkan"}</dd>
+        <dt>${NAMA_KENDARAAN.mobil}</dt>
+        <dd>${tarifMobil ?? "Belum ditetapkan"}</dd>`
+    : `
+        <dt>Tarif</dt>
+        <dd>Tarif resmi belum diverifikasi</dd>`;
+
+  const rujukan = adaTarif && tarif ? sumberTarif(tarif) : null;
+
+  /**
+   * Catatan yang menemani angkanya, dan isinya harus berubah mengikuti seberapa
+   * banyak yang sudah benar-benar ditetapkan.
+   *
+   * Kalimat "belum diverifikasi" adalah pengaman untuk angka yang masih berupa
+   * rentang. Membiarkannya terpasang setelah titiknya ditetapkan justru merusak
+   * dua-duanya: penetapan yang sah terdengar masih ragu, dan peringatan itu
+   * kehilangan artinya karena muncul di mana-mana.
+   *
+   * Sebaliknya, apa yang MASIH belum diketahui harus tetap disebut satu per
+   * satu. Titik yang kategorinya sudah ditetapkan tapi mode bayarnya belum
+   * bukan titik yang "sudah beres".
+   */
+  const kalimatTarif = (): string => {
+    const akhiran =
+      "Pungutan di atas angka itu berarti di luar ketentuan.";
+    const akhiranRentang =
+      "Pungutan di atas batas tertinggi berarti di luar ketentuan.";
+
+    if (kategoriDipakai !== null && modeDipakai !== null) {
+      const dasar =
+        LABEL_SUMBER_KATEGORI[atribut?.sumber_kategori ?? ""] ?? "penetapan Dishub";
+      const cara = modeDipakai
+        ? "dibayar per jam"
+        : "dibayar sekali untuk satu kali parkir";
+      return `Kategori tarif titik ini sudah ditetapkan lewat ${lolos(dasar)} dan ${cara}. ${akhiran}`;
+    }
+    if (kategoriDipakai !== null) {
+      const dasar =
+        LABEL_SUMBER_KATEGORI[atribut?.sumber_kategori ?? ""] ?? "penetapan Dishub";
+      return `Kategori tarif titik ini sudah ditetapkan lewat ${lolos(dasar)}, tapi belum diverifikasi apakah titik ini menerapkan tarif progresif. ${akhiranRentang}`;
+    }
+    if (modeDipakai !== null) {
+      const cara = modeDipakai
+        ? "Titik ini menerapkan tarif progresif, dihitung per jam"
+        : "Titik ini tidak menerapkan tarif progresif — sekali bayar untuk satu kali parkir";
+      return `${cara}, tapi kategori tarifnya belum diverifikasi sehingga yang bisa dipastikan hanya rentangnya. ${akhiranRentang}`;
+    }
+    return `Titik ini belum diverifikasi kategori tarifnya maupun apakah menerapkan tarif progresif, jadi yang bisa dipastikan hanya rentangnya. ${akhiranRentang}`;
+  };
+
+  const catatanTarif = adaTarif
+    ? `<p class="popup-titik__catatan">${kalimatTarif()}</p>`
+    : "";
+  // Empat keadaan, dan semuanya harus dibedakan:
+  //
+  //   null            — belum termuat (jaringan lambat/mati). BUKAN nol, jadi
+  //                     tidak boleh ditulis nol dan tidak boleh didiamkan:
+  //                     diam terbaca sebagai "tidak ada laporan".
+  //   total 0         — memang belum ada laporan. Barisnya dihilangkan; menulis
+  //                     "0 laporan" di 1.235 titik justru menenggelamkan titik
+  //                     yang benar-benar punya laporan.
+  //   terbuka 0, ada  — semuanya sudah ditindaklanjuti. Angkanya TETAP disebut:
+  //                     titik yang dilaporkan berulang lalu diselesaikan
+  //                     berulang tidak boleh terlihat sebersih titik yang
+  //                     memang tidak pernah dilaporkan.
+  //   terbuka > 0     — kalimat "belum diverifikasi" WAJIB ikut. Laporan warga
+  //                     adalah keterangan sepihak, dan angka telanjang di
+  //                     sebelah sebuah titik terbaca sebagai vonis untuk jukir
+  //                     yang menjaganya.
+  const baris = (() => {
+    if (angka === null) {
+      return `<p class="popup-titik__laporan">Jumlah laporan belum termuat.</p>`;
+    }
+    if (angka.total === 0) return "";
+
+    const selesai = angka.total - angka.terbuka;
+    if (angka.terbuka === 0) {
+      return `<p class="popup-titik__laporan"><strong>${angka.total} laporan warga</strong> dalam 30 hari terakhir, semuanya sudah ditindaklanjuti petugas.</p>`;
+    }
+    if (selesai === 0) {
+      return `<p class="popup-titik__laporan"><strong>${angka.terbuka} laporan warga</strong> dalam 30 hari terakhir, belum diverifikasi petugas.</p>`;
+    }
+    return `<p class="popup-titik__laporan"><strong>${angka.total} laporan warga</strong> dalam 30 hari terakhir — ${selesai} sudah ditindaklanjuti, ${angka.terbuka} belum diverifikasi.</p>`;
+  })();
+
+  const sumber = rujukan
+    ? `<p class="popup-titik__sumber">Sumber: ${lolos(rujukan)}</p>`
+    : "";
 
   return `
     <div class="popup-titik">
@@ -143,12 +319,9 @@ function isiPopup(
       <dl class="popup-titik__rincian">
         <dt>Jam jaga</dt>
         <dd>${tulisJam(sifat)}</dd>
-        <dt>${NAMA_KENDARAAN.motor}</dt>
-        <dd>${teksRentang("motor")}</dd>
-        <dt>${NAMA_KENDARAAN.mobil}</dt>
-        <dd>${teksRentang("mobil")}</dd>
+${rincianTarif}
       </dl>
-      <p class="popup-titik__catatan">Kategori tarif titik ini belum diverifikasi, jadi yang bisa dipastikan hanya rentangnya. Pungutan di atas batas tertinggi berarti di luar ketentuan.</p>
+      ${catatanTarif}
       ${sumber}
       ${baris}
       ${catatanPresisi}
@@ -229,7 +402,21 @@ export function PetaTarif() {
    * Jumlah laporan per titik. `null` selama belum termuat — dibedakan dari
    * Map kosong, yang berarti sudah termuat dan memang nol.
    */
-  const agregatRef = useRef<Map<string, number> | null>(null);
+  const agregatRef = useRef<Map<string, AngkaLaporan> | null>(null);
+  /**
+   * Baris tabel `tarif`. null selama belum termuat — dan itu bukan "kosong":
+   * popup menahan diri menampilkan angka apa pun sampai jawabannya datang.
+   */
+  const tarifRef = useRef<BarisTarif[] | null>(null);
+  /**
+   * Penetapan per titik, dikunci `kode_titik`.
+   *
+   * Isinya HANYA titik yang sudah ditetapkan — lihat query-nya di bawah. Titik
+   * yang tidak ada di Map ini bukan titik yang gagal dimuat, melainkan titik
+   * yang memang belum diverifikasi, dan popupnya memang harus menampilkan
+   * rentang.
+   */
+  const atributRef = useRef<Map<string, AtributTitik>>(new Map());
   /** Gugus dan penandanya disimpan supaya ikonnya bisa disegarkan saat angka laporan tiba. */
   const gugusRef = useRef<{ refreshClusters: () => void } | null>(null);
   const penandaRef = useRef<Array<{ kode: string; penanda: Marker }>>([]);
@@ -245,7 +432,7 @@ export function PetaTarif() {
   /** Jumlah laporan lokasi tak terdaftar per wilayah, untuk pil di atas peta. */
   const [agregatWilayah, setAgregatWilayah] = useState<Map<
     string,
-    number
+    AngkaLaporan
   > | null>(null);
   const pinRef = useRef<Marker | null>(null);
 
@@ -266,20 +453,23 @@ export function PetaTarif() {
       (async () => {
         const { data, error } = await createClient()
           .from("laporan_agregat_titik")
-          .select("titik_kode, jumlah");
+          .select("titik_kode, jumlah_terbuka, jumlah_total");
 
         if (error) {
           console.error("[peta-tarif] gagal memuat jumlah laporan:", error);
           return;
         }
 
-        // Satu titik bisa punya beberapa baris (satu per jenis laporan), jadi
-        // dijumlahkan dulu.
-        const total = new Map<string, number>();
+        // Sejak 0007 view mengembalikan satu baris per titik, sudah berisi
+        // dua angka jadi — tidak perlu dijumlahkan lagi di sini.
+        const total = new Map<string, AngkaLaporan>();
         for (const baris of data ?? []) {
           const kode = baris.titik_kode as string | null;
           if (!kode) continue;
-          total.set(kode, (total.get(kode) ?? 0) + Number(baris.jumlah ?? 0));
+          total.set(kode, {
+            terbuka: Number(baris.jumlah_terbuka ?? 0),
+            total: Number(baris.jumlah_total ?? 0),
+          });
         }
         agregatRef.current = total;
         setAgregatVersi((v) => v + 1);
@@ -288,21 +478,21 @@ export function PetaTarif() {
       (async () => {
         const { data, error } = await createClient()
           .from("laporan_agregat_wilayah")
-          .select("bagian_kota, jumlah");
+          .select("bagian_kota, jumlah_terbuka, jumlah_total");
 
         if (error) {
           console.error("[peta-tarif] gagal memuat agregat wilayah:", error);
           return;
         }
 
-        const total = new Map<string, number>();
+        const total = new Map<string, AngkaLaporan>();
         for (const baris of data ?? []) {
           const wilayah = baris.bagian_kota as string | null;
           if (!wilayah) continue;
-          total.set(
-            wilayah,
-            (total.get(wilayah) ?? 0) + Number(baris.jumlah ?? 0),
-          );
+          total.set(wilayah, {
+            terbuka: Number(baris.jumlah_terbuka ?? 0),
+            total: Number(baris.jumlah_total ?? 0),
+          });
         }
         setAgregatWilayah(total);
       })(),
@@ -312,6 +502,90 @@ export function PetaTarif() {
   useEffect(() => {
     void muatAgregat();
   }, [muatAgregat]);
+
+  /**
+   * Tarif rujukan. Diambil sekali dan tidak pernah dimuat ulang: isinya Perda,
+   * bukan angka yang berubah tiap menit.
+   *
+   * Popup di-bindPopup sebagai fungsi, jadi baris yang tiba setelah 1.235
+   * penanda terpasang tetap ikut tampil pada popup berikutnya yang dibuka —
+   * tanpa perlu membangun ulang penandanya.
+   */
+  useEffect(() => {
+    let dibatalkan = false;
+
+    void (async () => {
+      const { data, error } = await createClient()
+        .from("tarif")
+        .select(
+          "id, kategori, jenis_kendaraan, mode, tarif_awal, tarif_per_jam, tarif_maks, sumber",
+        );
+
+      if (dibatalkan) return;
+      if (error) {
+        console.error("[peta-tarif] gagal memuat tarif:", error);
+        return;
+      }
+      tarifRef.current = (data ?? []) as BarisTarif[];
+    })();
+
+    return () => {
+      dibatalkan = true;
+    };
+  }, []);
+
+  /**
+   * Penetapan kategori dan mode bayar per titik.
+   *
+   * Yang diambil hanya baris yang PUNYA penetapan, bukan seluruh 1.235 titik.
+   * Bukan sekadar hemat: titik parkirnya sendiri digambar dari GeoJSON statis
+   * supaya peta tetap hidup tanpa jaringan, jadi query ini tidak boleh tumbuh
+   * jadi jalur yang membuat halaman ini bergantung pada Supabase. Selama belum
+   * banyak titik yang diverifikasi, jawabannya beberapa baris saja.
+   *
+   * Baris nonaktif ikut disaring: itu kode titik yang alamatnya sudah berubah
+   * di seed berikutnya, tidak lagi menggambar penanda apa pun, dan penetapannya
+   * tidak boleh menempel ke titik lain yang kebetulan bernama mirip.
+   */
+  useEffect(() => {
+    let dibatalkan = false;
+
+    void (async () => {
+      const { data, error } = await createClient()
+        .from("titik_parkir")
+        .select("kode_titik, kategori_tarif, sumber_kategori, progresif")
+        .eq("nonaktif", false)
+        .or("kategori_tarif.not.is.null,progresif.not.is.null");
+
+      if (dibatalkan) return;
+      if (error) {
+        // Peta tetap berguna tanpa ini — popupnya kembali menampilkan rentang,
+        // yang memang pernyataan yang selalu benar.
+        //
+        // Dirangkai jadi string lebih dulu — lihat `jelaskanGalat`. Meneruskan
+        // objeknya membuat overlay galat Next.js mencetak "{}", persis di tempat
+        // yang paling mungkin dibaca orang saat mengembangkan.
+        console.error(
+          `[peta-tarif] gagal memuat atribut titik: ${jelaskanGalat(error)}`,
+        );
+        return;
+      }
+
+      const peta = new Map<string, AtributTitik>();
+      for (const baris of data ?? []) {
+        peta.set(baris.kode_titik as string, {
+          kategori: (baris.kategori_tarif as string | null) ?? null,
+          progresif: (baris.progresif as boolean | null) ?? null,
+          sumber_kategori: (baris.sumber_kategori as string | null) ?? null,
+        });
+      }
+      atributRef.current = peta;
+    })();
+
+    return () => {
+      dibatalkan = true;
+    };
+  }, []);
 
   /**
    * Pil jumlah laporan per wilayah, digambar DI ATAS PETA.
@@ -350,7 +624,7 @@ export function PetaTarif() {
     for (const wilayah of WILAYAH) {
       const titik = rerata.get(wilayah);
       if (!titik || titik.n === 0) continue;
-      const jumlah = agregatWilayah.get(wilayah) ?? 0;
+      const jumlah = agregatWilayah.get(wilayah)?.terbuka ?? 0;
       // Wilayah tanpa laporan tidak diberi pil sama sekali. "Pusat · 0 laporan"
       // tidak memberi tahu apa pun yang berguna, dan lima pil nol menutupi peta
       // di zoom yang justru dipakai untuk melihat sebarannya.
@@ -407,7 +681,7 @@ export function PetaTarif() {
 
     let adaPerubahan = false;
     for (const { kode, penanda } of penandaRef.current) {
-      const jumlah = agregatRef.current?.get(kode) ?? 0;
+      const jumlah = agregatRef.current?.get(kode)?.terbuka ?? 0;
       if (terpasangRef.current.get(kode) === jumlah) continue;
 
       penanda.setIcon(
@@ -457,8 +731,13 @@ export function PetaTarif() {
   const catatLaporanBaru = useCallback(
     (info: Terkirim) => {
       if (info.jalur === "terdaftar") {
-        const peta = agregatRef.current ?? new Map<string, number>();
-        peta.set(info.kode, (peta.get(info.kode) ?? 0) + 1);
+        const peta = agregatRef.current ?? new Map<string, AngkaLaporan>();
+        const sebelumnya = peta.get(info.kode) ?? { terbuka: 0, total: 0 };
+        // Laporan baru selalu berstatus 'baru', jadi keduanya naik.
+        peta.set(info.kode, {
+          terbuka: sebelumnya.terbuka + 1,
+          total: sebelumnya.total + 1,
+        });
         agregatRef.current = peta;
         setAgregatVersi((v) => v + 1);
       } else {
@@ -467,7 +746,8 @@ export function PetaTarif() {
         const wilayah = turunkanWilayah(info.lat, info.lng);
         setAgregatWilayah((sebelumnya) => {
           const peta = new Map(sebelumnya ?? []);
-          peta.set(wilayah, (peta.get(wilayah) ?? 0) + 1);
+          const lama = peta.get(wilayah) ?? { terbuka: 0, total: 0 };
+          peta.set(wilayah, { terbuka: lama.terbuka + 1, total: lama.total + 1 });
           return peta;
         });
       }
@@ -567,7 +847,7 @@ export function PetaTarif() {
               n +
               (agregatRef.current?.get(
                 (m as unknown as { __kode?: string }).__kode ?? "",
-              ) ?? 0),
+              )?.terbuka ?? 0),
             0,
           );
           // Gugus tanpa laporan tidak menampilkan angka apa pun dan dibuat
@@ -624,7 +904,7 @@ export function PetaTarif() {
       terpasangRef.current = new Map();
       for (const fitur of data.features) {
         const [lng, lat] = fitur.geometry.coordinates;
-        const jumlahAwal = agregatRef.current?.get(fitur.id) ?? 0;
+        const jumlahAwal = agregatRef.current?.get(fitur.id)?.terbuka ?? 0;
         terpasangRef.current.set(fitur.id, jumlahAwal);
         const penanda = L.marker([lat, lng], {
           icon: buatIkonTitik(jumlahAwal),
@@ -639,7 +919,11 @@ export function PetaTarif() {
             isiPopup(
               fitur.properties,
               fitur.id,
-              agregatRef.current?.get(fitur.id) ?? (agregatRef.current ? 0 : null),
+              agregatRef.current
+                ? (agregatRef.current.get(fitur.id) ?? { terbuka: 0, total: 0 })
+                : null,
+              tarifRef.current,
+              atributRef.current.get(fitur.id) ?? null,
             ),
           {
             closeButton: true,

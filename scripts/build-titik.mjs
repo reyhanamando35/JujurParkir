@@ -374,6 +374,7 @@ alter table titik_parkir add column if not exists presisi     text;
 alter table titik_parkir add column if not exists jam_mulai   time;
 alter table titik_parkir add column if not exists jam_selesai time;
 alter table titik_parkir add column if not exists wilayah     text;
+alter table titik_parkir add column if not exists nonaktif    boolean not null default false;
 
 comment on column titik_parkir.kode_titik is
   'Id stabil: 8 heksadesimal pertama sha256(alamat|lokasi) yang dinormalisasi. Sengaja bukan nomor urut scraping, supaya laporan tidak salah sasaran ketika sumbernya di-scrape ulang.';
@@ -410,19 +411,49 @@ create unique index if not exists titik_parkir_kode_titik_idx
 -- sengaja dibiarkan null. Perda 7/2023 tidak memetakan alamat ke kategori
 -- tarif, jadi kita memang BELUM tahu tarif titik-titik ini. Mengisi nilai
 -- bawaan berarti menerbitkan angka yang tidak bisa ditelusuri.
-insert into titik_parkir
-  (kode_titik, alamat, landmark, jam_jaga, jam_mulai, jam_selesai, presisi, wilayah, geom)
-values
+-- Kode titik yang ada di seed KALI INI ditampung sementara, dipakai di bawah
+-- untuk mengenali baris yang sudah tidak ada lagi. Tabelnya hilang sendiri
+-- begitu transaksinya selesai.
+--
+-- kategori_tarif, sumber_kategori, dan progresif TIDAK ikut di ON CONFLICT, dan
+-- itu disengaja: ketiganya ditetapkan petugas lewat /petugas/titik, bukan
+-- berasal dari data yang di-scrape. Seed ulang tidak boleh menghapus pekerjaan
+-- itu.
+create temporary table titik_seed on commit drop as
+with dimasukkan as (
+  insert into titik_parkir
+    (kode_titik, alamat, landmark, jam_jaga, jam_mulai, jam_selesai, presisi, wilayah, geom)
+  values
 ${nilai}
-on conflict (kode_titik) do update set
-  alamat      = excluded.alamat,
-  landmark    = excluded.landmark,
-  jam_jaga    = excluded.jam_jaga,
-  jam_mulai   = excluded.jam_mulai,
-  jam_selesai = excluded.jam_selesai,
-  presisi     = excluded.presisi,
-  wilayah     = excluded.wilayah,
-  geom        = excluded.geom;
+  on conflict (kode_titik) do update set
+    alamat      = excluded.alamat,
+    landmark    = excluded.landmark,
+    jam_jaga    = excluded.jam_jaga,
+    jam_mulai   = excluded.jam_mulai,
+    jam_selesai = excluded.jam_selesai,
+    presisi     = excluded.presisi,
+    wilayah     = excluded.wilayah,
+    geom        = excluded.geom,
+    nonaktif    = false
+  returning kode_titik
+)
+select kode_titik from dimasukkan;
+
+-- Baris yang tidak muncul di seed ini ditandai nonaktif, BUKAN dihapus.
+--
+-- Penyebab tersering bukan titik parkirnya hilang, melainkan teks alamatnya
+-- dibersihkan: kode_titik adalah sha256(alamat|lokasi), jadi satu koreksi ejaan
+-- menghasilkan kode baru dan meninggalkan kode lama tanpa pasangan. Menghapus
+-- baris lamanya berarti membuang kategori tarif yang sudah ditetapkan petugas,
+-- dan memutus laporan warga yang menunjuk kode itu — dua hal yang tidak bisa
+-- dibangun ulang dari data mana pun.
+--
+-- Ditandai supaya bisa dihitung dan ditinjau di /petugas/titik. Titik nonaktif
+-- tidak ikut tampil di peta warga.
+update titik_parkir t
+set nonaktif = true
+where t.nonaktif = false
+  and not exists (select 1 from titik_seed s where s.kode_titik = t.kode_titik);
 
 commit;
 `;
